@@ -1,0 +1,589 @@
+// LabCore LIMS - Prisma schema (from docs/technical/database-schema.md)
+// Database: PostgreSQL (Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============ Enums ============
+enum UserRole {
+  admin
+  pathologist
+  senior_tech
+  technician
+  front_desk
+}
+
+enum GenderType {
+  male
+  female
+  other
+}
+
+enum DepartmentType {
+  haematology
+  biochemistry
+  microbiology
+  serology
+  histopathology
+  cytology
+  urine
+  clinical_pathology
+  immunology
+  molecular
+  other
+}
+
+enum SampleType {
+  blood_edta
+  blood_plain
+  blood_citrate
+  blood_fluoride
+  blood_heparin
+  urine
+  stool
+  sputum
+  csf
+  body_fluid
+  swab
+  tissue
+  other
+}
+
+enum ResultType {
+  numeric
+  qualitative
+  semi_quantitative
+  text
+  formula
+}
+
+enum OrderStatus {
+  registered
+  sample_collected
+  in_process
+  completed
+  reported
+  cancelled
+}
+
+enum OrderPriority {
+  routine
+  urgent
+  stat
+}
+
+enum SampleStatus {
+  ordered
+  collected
+  received
+  in_process
+  completed
+  stored
+  disposed
+  rejected
+}
+
+enum ResultStatus {
+  pending
+  entered
+  reviewed
+  authorised
+  amended
+}
+
+enum DeliveryChannel {
+  whatsapp
+  email
+  portal
+  print
+}
+
+enum DeliveryStatus {
+  queued
+  sent
+  delivered
+  read
+  failed
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+  paid
+  partial
+  cancelled
+}
+
+enum PaymentMode {
+  cash
+  upi
+  card
+  net_banking
+  cheque
+  other
+}
+
+// ============ Labs & Users ============
+model Lab {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String   @db.VarChar(255)
+  slug               String   @unique @db.VarChar(100)
+  address            String?
+  city               String?  @db.VarChar(100)
+  state              String?  @db.VarChar(100) @default("Kerala")
+  pincode            String?  @db.VarChar(10)
+  phone              String?  @db.VarChar(20)
+  email              String?  @db.VarChar(255)
+  website            String?  @db.VarChar(255)
+  gstin              String?  @db.VarChar(15)
+  nablCertNo         String?  @map("nabl_cert_no") @db.VarChar(50)
+  logoUrl            String?  @map("logo_url") @db.VarChar(500)
+  subscriptionPlan   String   @map("subscription_plan") @db.VarChar(50) @default("trial")
+  subscriptionStatus String   @map("subscription_status") @db.VarChar(20) @default("active")
+  maxUsers           Int      @map("max_users") @default(2)
+  settings           Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  users              User[]
+  patients           Patient[]
+  referringDoctors   ReferringDoctor[]
+  testDefinitions    TestDefinition[]
+  testParameters     TestParameter[]
+  rateCards          RateCard[]
+  rateCardItems      RateCardItem[]
+  orders             Order[]
+  orderItems         OrderItem[]
+  samples            Sample[]
+  sampleEvents       SampleEvent[]
+  results            Result[]
+  resultValues       ResultValue[]
+  reports            Report[]
+  reportDeliveries   ReportDelivery[]
+  invoices           Invoice[]
+  payments           Payment[]
+  auditLogs          AuditLog[]
+  userSessions       UserSession[]
+}
+
+model User {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId          String   @map("lab_id") @db.Uuid
+  name           String   @db.VarChar(255)
+  email          String?  @db.VarChar(255)
+  mobile         String   @db.VarChar(20)
+  passwordHash   String   @map("password_hash") @db.VarChar(255)
+  role           UserRole @default(front_desk)
+  signatureUrl   String?  @map("signature_url") @db.VarChar(500)
+  qualification  String?  @db.VarChar(255)
+  registrationNo String?  @map("registration_no") @db.VarChar(100)
+  languagePref   String   @map("language_pref") @db.VarChar(10) @default("en")
+  isActive       Boolean  @default(true) @map("is_active")
+  lastLoginAt    DateTime? @map("last_login_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  lab            Lab      @relation(fields: [labId], references: [id])
+  sessions       UserSession[]
+  auditLogs      AuditLog[]
+  ordersRegistered Order[] @relation("RegisteredBy")
+  paymentsReceived Payment[] @relation("PaymentsReceived")
+
+  @@unique([labId, mobile])
+}
+
+model UserSession {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId        String   @map("lab_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  refreshToken String   @map("refresh_token") @db.VarChar(512)
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  lab          Lab      @relation(fields: [labId], references: [id])
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ Patients & Referring Doctors ============
+model Patient {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId       String     @map("lab_id") @db.Uuid
+  patientCode String     @map("patient_code") @db.VarChar(50)
+  name        String     @db.VarChar(255)
+  nameMl      String?    @map("name_ml") @db.VarChar(255)
+  ageYears    Int?
+  ageMonths   Int?
+  ageDays     Int?
+  dateOfBirth DateTime?  @map("date_of_birth") @db.Date
+  gender      GenderType
+  mobile      String     @db.VarChar(20)
+  email       String?    @db.VarChar(255)
+  address     String?
+  city        String?    @db.VarChar(100)
+  pincode     String?    @db.VarChar(10)
+  abhaId      String?    @map("abha_id") @db.VarChar(50)
+  notes       String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at")
+
+  lab         Lab        @relation(fields: [labId], references: [id])
+  orders      Order[]
+  invoices    Invoice[]
+
+  @@unique([labId, patientCode])
+  @@index([labId, mobile])
+  @@index([labId, name])
+}
+
+model ReferringDoctor {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId        String   @map("lab_id") @db.Uuid
+  name         String   @db.VarChar(255)
+  qualification String? @db.VarChar(255)
+  hospitalClinic String? @map("hospital_clinic") @db.VarChar(255)
+  mobile       String?  @db.VarChar(20)
+  email        String?  @db.VarChar(255)
+  commissionPct Decimal? @map("commission_pct") @db.Decimal(5, 2) @default(0)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  lab          Lab      @relation(fields: [labId], references: [id])
+  orders       Order[]
+}
+
+// ============ Test Definitions ============
+model TestDefinition {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId           String         @map("lab_id") @db.Uuid
+  testCode        String         @map("test_code") @db.VarChar(50)
+  testName        String         @map("test_name") @db.VarChar(255)
+  department      DepartmentType
+  sampleType      SampleType     @map("sample_type")
+  tubeColour      String?        @map("tube_colour") @db.VarChar(20)
+  isPanel         Boolean        @default(false) @map("is_panel")
+  tatHours        Int?           @default(24) @map("tat_hours")
+  price           Decimal        @default(0) @db.Decimal(10, 2)
+  isActive        Boolean        @default(true) @map("is_active")
+  sortOrder       Int            @default(0) @map("sort_order")
+  reportTemplate  String?        @map("report_template") @db.VarChar(50)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  lab             Lab            @relation(fields: [labId], references: [id])
+  panelComponents TestPanelComponent[] @relation("PanelComponents")
+  componentOf     TestPanelComponent[] @relation("Panel")
+  parameters      TestParameter[]
+  orderItems      OrderItem[]
+  rateCardItems   RateCardItem[]
+}
+
+model TestPanelComponent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  panelId          String   @map("panel_id") @db.Uuid
+  testDefinitionId String   @map("test_definition_id") @db.Uuid
+
+  panel            TestDefinition @relation("Panel", fields: [panelId], references: [id], onDelete: Cascade)
+  testDefinition  TestDefinition @relation("PanelComponents", fields: [testDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([panelId, testDefinitionId])
+}
+
+model TestParameter {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId            String     @map("lab_id") @db.Uuid
+  testDefinitionId String     @map("test_definition_id") @db.Uuid
+  paramName        String     @map("param_name") @db.VarChar(255)
+  paramCode        String?    @map("param_code") @db.VarChar(50)
+  unit             String?    @db.VarChar(50)
+  resultType       ResultType @default(numeric) @map("result_type")
+  decimalPlaces    Int?       @default(2) @map("decimal_places")
+  sortOrder        Int        @default(0) @map("sort_order")
+  defaultRefRange  Json?      @map("default_ref_range")
+  criticalLow      Decimal?   @map("critical_low") @db.Decimal(10, 4)
+  criticalHigh     Decimal?   @map("critical_high") @db.Decimal(10, 4)
+  codedValues      String[]   @map("coded_values")
+  formula          String?    @db.VarChar(500)
+  formulaParams    String[]   @map("formula_params")
+  isActive         Boolean    @default(true) @map("is_active")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  lab              Lab        @relation(fields: [labId], references: [id])
+  testDefinition   TestDefinition @relation(fields: [testDefinitionId], references: [id], onDelete: Cascade)
+  resultValues     ResultValue[]
+}
+
+// ============ Orders & Samples ============
+model Order {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId              String        @map("lab_id") @db.Uuid
+  orderCode          String        @map("order_code") @db.VarChar(50)
+  patientId          String        @map("patient_id") @db.Uuid
+  referringDoctorId String?       @map("referring_doctor_id") @db.Uuid
+  status             OrderStatus   @default(registered)
+  priority           OrderPriority @default(routine)
+  clinicalHistory    String?       @map("clinical_history")
+  notes              String?
+  registeredById     String        @map("registered_by") @db.Uuid
+  registeredAt       DateTime      @default(now()) @map("registered_at")
+  completedAt        DateTime?     @map("completed_at")
+  reportedAt         DateTime?     @map("reported_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  deletedAt          DateTime?     @map("deleted_at")
+
+  lab                Lab           @relation(fields: [labId], references: [id])
+  patient            Patient       @relation(fields: [patientId], references: [id])
+  referringDoctor    ReferringDoctor? @relation(fields: [referringDoctorId], references: [id])
+  registeredBy       User          @relation("RegisteredBy", fields: [registeredById], references: [id])
+  orderItems         OrderItem[]
+  samples            Sample[]
+  invoices           Invoice[]
+  reports            Report[]
+}
+
+model OrderItem {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId              String   @map("lab_id") @db.Uuid
+  orderId            String   @map("order_id") @db.Uuid
+  testDefinitionId   String   @map("test_definition_id") @db.Uuid
+  price              Decimal  @db.Decimal(10, 2)
+  discountAmount     Decimal? @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  discountPct        Decimal? @default(0) @map("discount_pct") @db.Decimal(5, 2)
+  status             String   @default("pending") @db.VarChar(20)
+  cancelledAt        DateTime? @map("cancelled_at")
+  cancelReason       String?  @map("cancel_reason") @db.VarChar(255)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  lab                Lab           @relation(fields: [labId], references: [id])
+  order              Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  testDefinition     TestDefinition @relation(fields: [testDefinitionId], references: [id])
+  results            Result[]
+}
+
+model Sample {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId           String       @map("lab_id") @db.Uuid
+  sampleCode      String       @map("sample_code") @db.VarChar(50)
+  orderId         String       @map("order_id") @db.Uuid
+  sampleType      SampleType   @map("sample_type")
+  tubeColour      String?      @map("tube_colour") @db.VarChar(20)
+  status          SampleStatus @default(ordered)
+  barcodeData     String       @map("barcode_data") @db.VarChar(100)
+  collectedById   String?      @map("collected_by") @db.Uuid
+  collectedAt     DateTime?    @map("collected_at")
+  receivedById    String?      @map("received_by") @db.Uuid
+  receivedAt      DateTime?    @map("received_at")
+  rejectionReason String?      @map("rejection_reason") @db.VarChar(255)
+  rejectedById    String?      @map("rejected_by") @db.Uuid
+  rejectedAt      DateTime?    @map("rejected_at")
+  storageLocation String?      @map("storage_location") @db.VarChar(100)
+  disposedAt      DateTime?    @map("disposed_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  lab             Lab          @relation(fields: [labId], references: [id])
+  order           Order        @relation(fields: [orderId], references: [id])
+  sampleEvents    SampleEvent[]
+  results         Result[]
+}
+
+model SampleEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId        String   @map("lab_id") @db.Uuid
+  sampleId     String   @map("sample_id") @db.Uuid
+  eventType    String   @map("event_type") @db.VarChar(50)
+  eventData    Json?    @map("event_data")
+  performedById String  @map("performed_by") @db.Uuid
+  performedAt  DateTime @default(now()) @map("performed_at")
+
+  lab          Lab      @relation(fields: [labId], references: [id])
+  sample       Sample   @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+}
+
+// ============ Results ============
+model Result {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId             String       @map("lab_id") @db.Uuid
+  orderItemId       String       @map("order_item_id") @db.Uuid
+  sampleId          String       @map("sample_id") @db.Uuid
+  status            ResultStatus @default(pending)
+  enteredById       String?      @map("entered_by") @db.Uuid
+  enteredAt         DateTime?    @map("entered_at")
+  reviewedById      String?      @map("reviewed_by") @db.Uuid
+  reviewedAt        DateTime?    @map("reviewed_at")
+  authorisedById    String?      @map("authorised_by") @db.Uuid
+  authorisedAt      DateTime?    @map("authorised_at")
+  rejectionComment  String?      @map("rejection_comment")
+  interpretiveNotes String?     @map("interpretive_notes")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  lab               Lab          @relation(fields: [labId], references: [id])
+  orderItem         OrderItem    @relation(fields: [orderItemId], references: [id])
+  sample            Sample       @relation(fields: [sampleId], references: [id])
+  resultValues      ResultValue[]
+}
+
+model ResultValue {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId            String   @map("lab_id") @db.Uuid
+  resultId         String   @map("result_id") @db.Uuid
+  testParameterId  String   @map("test_parameter_id") @db.Uuid
+  numericValue     Decimal? @map("numeric_value") @db.Decimal(15, 6)
+  textValue        String?  @map("text_value")
+  codedValue       String?  @map("coded_value") @db.VarChar(100)
+  abnormalFlag     String?  @map("abnormal_flag") @db.VarChar(10)
+  refRangeLow      Decimal? @map("ref_range_low") @db.Decimal(10, 4)
+  refRangeHigh     Decimal? @map("ref_range_high") @db.Decimal(10, 4)
+  refRangeText     String?  @map("ref_range_text") @db.VarChar(255)
+  unit             String?  @db.VarChar(50)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  lab              Lab      @relation(fields: [labId], references: [id])
+  result           Result   @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  testParameter    TestParameter @relation(fields: [testParameterId], references: [id])
+}
+
+// ============ Reports ============
+model Report {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId               String   @map("lab_id") @db.Uuid
+  orderId             String   @map("order_id") @db.Uuid
+  reportCode          String   @map("report_code") @db.VarChar(50)
+  version             Int      @default(1)
+  pdfUrl              String?  @map("pdf_url") @db.VarChar(500)
+  pdfSizeBytes        Int?     @map("pdf_size_bytes")
+  qrVerificationCode  String?  @map("qr_verification_code") @db.VarChar(100)
+  isAmended           Boolean  @default(false) @map("is_amended")
+  amendmentReason     String?  @map("amendment_reason")
+  generatedById       String   @map("generated_by") @db.Uuid
+  generatedAt         DateTime @default(now()) @map("generated_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  lab                 Lab      @relation(fields: [labId], references: [id])
+  order               Order     @relation(fields: [orderId], references: [id])
+  deliveries          ReportDelivery[]
+}
+
+model ReportDelivery {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId           String          @map("lab_id") @db.Uuid
+  reportId        String          @map("report_id") @db.Uuid
+  channel         DeliveryChannel
+  recipientType   String          @map("recipient_type") @db.VarChar(20)
+  recipientId     String?         @map("recipient_id") @db.Uuid
+  recipientContact String         @map("recipient_contact") @db.VarChar(255)
+  status          DeliveryStatus  @default(queued)
+  sentAt          DateTime?       @map("sent_at")
+  deliveredAt     DateTime?       @map("delivered_at")
+  readAt          DateTime?       @map("read_at")
+  errorMessage    String?         @map("error_message")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  lab             Lab             @relation(fields: [labId], references: [id])
+  report          Report          @relation(fields: [reportId], references: [id])
+}
+
+// ============ Billing ============
+model Invoice {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId          String        @map("lab_id") @db.Uuid
+  invoiceCode    String        @map("invoice_code") @db.VarChar(50)
+  orderId        String        @map("order_id") @db.Uuid
+  patientId      String        @map("patient_id") @db.Uuid
+  subtotal       Decimal       @db.Decimal(10, 2)
+  discountTotal  Decimal       @default(0) @map("discount_total") @db.Decimal(10, 2)
+  taxAmount      Decimal       @default(0) @map("tax_amount") @db.Decimal(10, 2)
+  grandTotal     Decimal       @map("grand_total") @db.Decimal(10, 2)
+  amountPaid     Decimal       @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  amountDue      Decimal       @map("amount_due") @db.Decimal(10, 2)
+  status         InvoiceStatus @default(issued)
+  gstin          String?       @db.VarChar(15)
+  hsnSacCode     String?       @map("hsn_sac_code") @db.VarChar(20)
+  notes          String?
+  issuedById     String        @map("issued_by") @db.Uuid
+  issuedAt       DateTime      @default(now()) @map("issued_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  lab            Lab           @relation(fields: [labId], references: [id])
+  order          Order         @relation(fields: [orderId], references: [id])
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  payments       Payment[]
+}
+
+model Payment {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId       String      @map("lab_id") @db.Uuid
+  invoiceId   String      @map("invoice_id") @db.Uuid
+  amount      Decimal     @db.Decimal(10, 2)
+  mode        PaymentMode
+  referenceNo String?     @map("reference_no") @db.VarChar(100)
+  notes       String?     @db.VarChar(255)
+  receivedById String     @map("received_by") @db.Uuid
+  receivedAt  DateTime   @default(now()) @map("received_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  lab         Lab         @relation(fields: [labId], references: [id])
+  invoice     Invoice     @relation(fields: [invoiceId], references: [id])
+  receivedBy  User        @relation("PaymentsReceived", fields: [receivedById], references: [id])
+}
+
+model RateCard {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId       String   @map("lab_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  isDefault   Boolean  @default(false) @map("is_default")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  lab         Lab      @relation(fields: [labId], references: [id])
+  items       RateCardItem[]
+}
+
+model RateCardItem {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId             String   @map("lab_id") @db.Uuid
+  rateCardId        String   @map("rate_card_id") @db.Uuid
+  testDefinitionId  String   @map("test_definition_id") @db.Uuid
+  price             Decimal  @db.Decimal(10, 2)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  lab               Lab      @relation(fields: [labId], references: [id])
+  rateCard          RateCard @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
+  testDefinition   TestDefinition @relation(fields: [testDefinitionId], references: [id])
+}
+
+// ============ Audit ============
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId      String   @map("lab_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  action     String   @db.VarChar(50)
+  entityType String   @map("entity_type") @db.VarChar(50)
+  entityId   String   @map("entity_id") @db.Uuid
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  lab        Lab      @relation(fields: [labId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+}
