@@ -1,4 +1,4 @@
 {
   "installCommand": "cd ../.. && pnpm install --ignore-scripts",
-  "buildCommand": "pnpm --filter web build"
+  "buildCommand": "cd ../.. && pnpm --filter @labcore/shared build && pnpm --filter web build"
 }
