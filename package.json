@@ -22,17 +22,19 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
+    "@prisma/client": "^5.22.0",
+    "@types/bcryptjs": "^3.0.0",
     "eslint": "^8.56.0",
     "prettier": "^3.2.5",
     "prisma": "^5.22.0",
-    "@prisma/client": "^5.22.0",
     "ts-node": "^10.9.2",
-    "bcrypt": "^5.1.1",
-    "@types/bcrypt": "^5.0.2"
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
+  }
 }
