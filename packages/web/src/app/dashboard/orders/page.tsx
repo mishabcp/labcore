@@ -66,7 +66,11 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-900">{o.patient?.name ?? '—'}</td>
                   <td className="px-4 py-2 text-sm text-gray-600">{o.status}</td>
-                  <td className="px-4 py-2 text-sm text-gray-600">{o.priority}</td>
+                  <td className="px-4 py-2 text-sm">
+                    {o.priority === 'stat' && <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">STAT</span>}
+                    {o.priority === 'urgent' && <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Urgent</span>}
+                    {(o.priority === 'routine' || !o.priority) && <span className="text-gray-500">Routine</span>}
+                  </td>
                   <td className="px-4 py-2 text-sm text-gray-600">
                     {o.registeredAt ? new Date(o.registeredAt).toLocaleDateString() : '—'}
                   </td>

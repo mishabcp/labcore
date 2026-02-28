@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from '@/lib/i18n/useTranslation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -12,7 +13,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [user, setUser] = useState<{ name: string; labName: string } | null>(null);
+  const { language, setLanguage, t } = useTranslation();
+  const [user, setUser] = useState<{ name: string; labName: string; role: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,62 +61,114 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-56 border-r border-gray-200 bg-white p-4">
-        <p className="font-semibold text-gray-900">LabCore</p>
-        <nav className="mt-6 space-y-1">
+      <aside className="w-56 border-r border-gray-200 bg-white p-4" aria-label="Main navigation">
+        <p className="font-semibold text-gray-900" aria-hidden="true">LabCore</p>
+        <nav className="mt-6 space-y-1" aria-label="Dashboard navigation">
           <Link
             href="/dashboard"
             className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            Dashboard
+            {t('nav.dashboard')}
           </Link>
           <Link
             href="/dashboard/patients"
             className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            Patients
+            {t('nav.patients')}
           </Link>
           <Link
             href="/dashboard/orders"
             className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            Orders
+            {t('nav.orders')}
           </Link>
           <Link
             href="/dashboard/samples"
             className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            Samples
+            {t('nav.samples')}
           </Link>
           <Link
             href="/dashboard/results"
             className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            Results
+            {t('nav.results')}
           </Link>
+
           <Link
-            href="/dashboard/rate-cards"
+            href="/dashboard/reports"
             className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            Rate cards
+            {t('nav.reports')}
           </Link>
+
+          {/* ADMIN ONLY SECTIONS */}
+          {user?.role === 'admin' && (
+            <>
+              <Link
+                href="/dashboard/rate-cards"
+                className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Rate Cards
+              </Link>
+
+              <div className="pt-4 mt-4 border-t border-gray-200">
+                <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  {t('nav.settings')}
+                </p>
+                <Link
+                  href="/dashboard/settings/users"
+                  className="mt-2 block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  {t('settings.users')}
+                </Link>
+                <Link
+                  href="/dashboard/settings/lab-profile"
+                  className="mt-2 block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  {t('settings.labProfile')}
+                </Link>
+                <Link
+                  href="/dashboard/settings/tests"
+                  className="mt-2 block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Test Master
+                </Link>
+              </div>
+            </>
+          )}
         </nav>
         <button
           onClick={handleLogout}
           className="mt-8 block w-full rounded-md px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-100"
         >
-          Sign out
+          {t('common.logout')}
         </button>
       </aside>
-      <div className="flex-1">
-        <header className="border-b border-gray-200 bg-white px-6 py-4">
-          {user && (
+      <div className="flex-1" role="region" aria-label="Dashboard content">
+        <header className="border-b border-gray-200 bg-white px-6 py-4 flex justify-between items-center" role="banner">
+          {user ? (
             <p className="text-sm text-gray-600">
               {user.name} · {user.labName}
             </p>
+          ) : (
+            <div />
           )}
+          <div className="flex items-center space-x-2">
+            <label htmlFor="language-select" className="text-sm text-gray-500">{t('settings.language')}:</label>
+            <select
+              id="language-select"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as any)}
+              className="text-sm border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              aria-label="Select language"
+            >
+              <option value="en">{t('settings.english')}</option>
+              <option value="ml">{t('settings.malayalam')}</option>
+            </select>
+          </div>
         </header>
-        <main className="p-6">{children}</main>
+        <main className="p-6" aria-label="Page content">{children}</main>
       </div>
     </div>
   );

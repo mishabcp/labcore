@@ -10,7 +10,7 @@ export class ResultsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-  ) {}
+  ) { }
 
   async findWorklist(labId: string, status?: $Enums.ResultStatus, limit = 100) {
     const where: { labId: string; status?: $Enums.ResultStatus } = { labId };
@@ -32,7 +32,7 @@ export class ResultsService {
   }
 
   async findOne(labId: string, id: string) {
-    return this.prisma.result.findFirst({
+    const result = await this.prisma.result.findFirst({
       where: { id, labId },
       include: {
         orderItem: {
@@ -45,6 +45,66 @@ export class ResultsService {
         resultValues: { include: { testParameter: true } },
       },
     });
+
+    if (!result) return null;
+
+    // Evaluate age/gender reference ranges
+    const patient = result.orderItem.order.patient;
+    const age = patient?.ageYears || 30; // fallback if not set
+    const gender = patient?.gender?.toLowerCase() || 'unspecified';
+
+    const evaluatedParameters = result.orderItem.testDefinition.parameters.map((param) => {
+      let currentRefRange: any = null;
+      if (param.defaultRefRange) {
+        const r = param.defaultRefRange as any;
+        if (r.ranges && Array.isArray(r.ranges)) {
+          const match = r.ranges.find((range: any) => {
+            const genderMatch = !range.gender || range.gender === 'all' || range.gender.toLowerCase() === gender;
+            const ageMatch = age >= (range.minAge ?? 0) && age <= (range.maxAge ?? 150);
+            return genderMatch && ageMatch;
+          });
+          if (match) {
+            currentRefRange = { min: match.minValue ?? match.min, max: match.maxValue ?? match.max };
+          }
+        } else if (r.min !== undefined && r.max !== undefined) {
+          currentRefRange = { min: r.min, max: r.max };
+        }
+      }
+      return {
+        ...param,
+        evaluatedRefRange: currentRefRange || param.defaultRefRange,
+      };
+    });
+
+    const previousResults = await this.prisma.result.findMany({
+      where: {
+        labId,
+        id: { not: id },
+        status: 'authorised',
+        orderItem: {
+          testDefinitionId: result.orderItem.testDefinitionId,
+          order: { patientId: result.orderItem.order.patientId }
+        }
+      },
+      orderBy: { authorisedAt: 'desc' },
+      take: 3,
+      include: {
+        orderItem: { include: { order: true } },
+        resultValues: { include: { testParameter: true } }
+      }
+    });
+
+    return {
+      ...result,
+      previousResults,
+      orderItem: {
+        ...result.orderItem,
+        testDefinition: {
+          ...result.orderItem.testDefinition,
+          parameters: evaluatedParameters,
+        },
+      },
+    };
   }
 
   async submitValues(labId: string, resultId: string, userId: string, userRole: $Enums.UserRole, dto: SubmitResultValuesDto) {
@@ -59,8 +119,8 @@ export class ResultsService {
     if (result.orderItem.cancelledAt) {
       throw new BadRequestException('Cannot enter result for cancelled order item');
     }
-    if (result.status !== 'pending' && result.status !== 'entered') {
-      throw new BadRequestException('Result already in progress or authorised');
+    if (result.status === 'authorised') {
+      throw new BadRequestException('Result already authorised');
     }
 
     for (const v of dto.values) {
@@ -93,12 +153,69 @@ export class ResultsService {
       }
     }
 
+    // Evaluate formula parameters
+    const formulaParams = result.orderItem.testDefinition.parameters.filter(p => p.resultType === 'formula' && p.formula);
+    if (formulaParams.length > 0) {
+      const currentValues = new Map<string, number>();
+      // load newly saved values
+      const updatedValues = await this.prisma.resultValue.findMany({
+        where: { resultId },
+        include: { testParameter: true },
+      });
+      for (const uv of updatedValues) {
+        if (uv.numericValue != null) {
+          currentValues.set(uv.testParameter.id, Number(uv.numericValue));
+          if (uv.testParameter.paramCode) currentValues.set(uv.testParameter.paramCode, Number(uv.numericValue));
+        }
+      }
+
+      for (const fp of formulaParams) {
+        try {
+          let expression = fp.formula!;
+          let canEvaluate = true;
+          for (const reqParam of (fp.formulaParams || [])) {
+            const val = currentValues.get(reqParam);
+            if (val == null) {
+              canEvaluate = false;
+              break;
+            }
+            expression = expression.replace(new RegExp(`\\b${reqParam}\\b`, 'g'), String(val));
+          }
+          if (canEvaluate) {
+            const evalFn = new Function('return ' + expression);
+            const calculated = evalFn();
+            if (typeof calculated === 'number') {
+              const existing = updatedValues.find(uv => uv.testParameterId === fp.id);
+              if (existing) {
+                await this.prisma.resultValue.update({
+                  where: { id: existing.id },
+                  data: { numericValue: new Decimal(calculated) }
+                });
+              } else {
+                await this.prisma.resultValue.create({
+                  data: {
+                    labId, resultId, testParameterId: fp.id,
+                    numericValue: new Decimal(calculated),
+                    unit: fp.unit
+                  }
+                });
+              }
+            }
+          }
+        } catch (e) {
+          // Ignore formula parsing errors quietly
+        }
+      }
+    }
+
     await this.prisma.result.update({
       where: { id: resultId },
       data: {
         status: 'entered',
         enteredById: userId,
         enteredAt: new Date(),
+        reviewedById: null,
+        reviewedAt: null,
       },
     });
 

@@ -10,7 +10,7 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-  ) {}
+  ) { }
 
   async findAll(labId: string, limit = 50) {
     return this.prisma.invoice.findMany({
@@ -98,5 +98,30 @@ export class InvoicesService {
       status,
     });
     return this.findOne(labId, invoiceId);
+  }
+
+  async getDailySummary(labId: string, dateStr: string) {
+    const start = new Date(dateStr);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(dateStr);
+    end.setHours(23, 59, 59, 999);
+
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        labId,
+        createdAt: { gte: start, lte: end },
+      },
+      select: { amount: true, mode: true },
+    });
+
+    let total = 0;
+    const byMode: Record<string, number> = {};
+    for (const p of payments) {
+      const amt = p.amount instanceof Decimal ? p.amount.toNumber() : Number(p.amount);
+      total += amt;
+      byMode[p.mode] = (byMode[p.mode] || 0) + amt;
+    }
+
+    return { date: dateStr, totalCollection: total, breakdownByMode: byMode };
   }
 }

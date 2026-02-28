@@ -1,163 +1,183 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { api } from '@/lib/api';
+import { Printer } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
-function getToken() {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('accessToken');
-}
-
-type Invoice = {
-  id: string;
-  invoiceCode: string;
-  issuedAt: string;
-  subtotal: number;
-  discountTotal: number;
-  taxAmount: number;
-  grandTotal: number;
-  amountPaid: number;
-  amountDue: number;
-  gstin: string | null;
-  hsnSacCode: string | null;
-  order: {
-    orderCode: string;
-    orderItems: Array<{
-      testDefinition: { testName: string; testCode: string; price?: number };
-      price?: number;
-    }>;
-  };
-  patient: { name: string; patientCode: string };
-  payments: Array<{ amount: number; mode: string; receivedAt: string; referenceNo: string | null }>;
-};
-
-export default function ReceiptPrintPage() {
+export default function InvoiceReceiptPage() {
   const params = useParams();
   const id = params.id as string;
-  const [invoice, setInvoice] = useState<Invoice | null>(null);
+
   const [loading, setLoading] = useState(true);
+  const [invoice, setInvoice] = useState<any>(null);
+  const [lab, setLab] = useState<any>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token || !id) {
-      setLoading(false);
-      return;
-    }
-    fetch(`${API_URL}/invoices/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) {
-          setInvoice({
-            ...data,
-            subtotal: Number(data.subtotal),
-            discountTotal: Number(data.discountTotal ?? 0),
-            taxAmount: Number(data.taxAmount),
-            grandTotal: Number(data.grandTotal),
-            amountPaid: Number(data.amountPaid),
-            amountDue: Number(data.amountDue),
-            payments: (data.payments ?? []).map((p: { amount: unknown; mode: string; receivedAt: string; referenceNo: string | null }) => ({
-              amount: Number(p.amount),
-              mode: p.mode,
-              receivedAt: p.receivedAt,
-              referenceNo: p.referenceNo,
-            })),
-          });
-        }
-      })
-      .catch(() => setInvoice(null))
-      .finally(() => setLoading(false));
+    const fetchData = async () => {
+      try {
+        const [invData, labData] = await Promise.all([
+          api.get(`/invoices/${id}`),
+          api.get('/settings/lab')
+        ]);
+        setInvoice(invData);
+        setLab(labData);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (id) fetchData();
   }, [id]);
 
-  const handlePrint = () => window.print();
+  if (loading) return <div className="p-8 text-center text-gray-500 print:hidden">Loading receipt...</div>;
+  if (!invoice) return <div className="p-8 text-center text-red-500 print:hidden">Invoice not found or error.</div>;
 
-  if (loading) return <p className="p-6 text-gray-500">Loading…</p>;
-  if (!invoice) {
-    return (
-      <div className="p-6">
-        <p className="text-gray-500">Invoice not found.</p>
-        <Link href="/dashboard/orders" className="mt-2 inline-block text-sm text-blue-600 hover:underline">← Back</Link>
-      </div>
-    );
-  }
+  const patient = invoice.patient;
+  const items = invoice.order.orderItems;
 
   return (
-    <div className="p-6">
-      <div className="mb-4 no-print">
+    <div className="min-h-screen bg-gray-100 py-8 print:py-0 print:bg-white text-black">
+
+      {/* Action Bar (Hidden in Print) */}
+      <div className="max-w-3xl mx-auto mb-4 flex justify-end print:hidden">
         <button
-          type="button"
-          onClick={handlePrint}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          onClick={() => window.print()}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow-sm text-sm"
         >
-          Print receipt
+          <Printer className="w-4 h-4" /> Print Invoice
         </button>
-        <Link href="/dashboard/orders" className="ml-2 inline-block rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-          ← Back
-        </Link>
       </div>
 
-      <div id="receipt" className="max-w-md border border-gray-200 bg-white p-6 print:border-0">
-        <h1 className="text-lg font-bold text-gray-900">Payment Receipt</h1>
-        <p className="text-sm text-gray-600">Invoice: {invoice.invoiceCode}</p>
-        <p className="text-sm text-gray-600">Date: {new Date(invoice.issuedAt).toLocaleString('en-IN')}</p>
-        <p className="mt-2 text-sm">Order: {invoice.order?.orderCode ?? '—'}</p>
-        <p className="text-sm">Patient: {invoice.patient?.name ?? '—'} ({invoice.patient?.patientCode ?? '—'})</p>
+      {/* A4 Print Paper Container */}
+      <div className="max-w-3xl mx-auto bg-white p-8 sm:p-12 shadow-md print:shadow-none print:p-0">
 
-        <dl className="mt-4 space-y-1 text-sm">
-          <div className="flex justify-between">
-            <dt>Subtotal</dt>
-            <dd>₹{invoice.subtotal.toFixed(2)}</dd>
-          </div>
-          {invoice.discountTotal > 0 && (
-            <div className="flex justify-between">
-              <dt>Discount</dt>
-              <dd>-₹{invoice.discountTotal.toFixed(2)}</dd>
+        {/* Header (Lab Branding & GST) */}
+        <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-gray-900 pb-6 mb-6">
+          <div className="flex gap-4">
+            {lab?.logoUrl && (
+              <img src={lab.logoUrl} alt="Lab Logo" className="h-16 w-auto object-contain" />
+            )}
+            <div>
+              <h1 className="text-2xl font-bold uppercase tracking-wide text-gray-900">{lab?.name || 'LabCore Diagnostics'}</h1>
+              {lab?.address && <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{lab.address}</p>}
+              <p className="text-sm text-gray-700 mt-1">
+                {lab?.phone && <span>Tel: {lab.phone} | </span>}
+                {lab?.email && <span>{lab.email}</span>}
+              </p>
             </div>
-          )}
-          <div className="flex justify-between">
-            <dt>GST (18%)</dt>
-            <dd>₹{invoice.taxAmount.toFixed(2)}</dd>
           </div>
-          <div className="flex justify-between font-medium">
-            <dt>Grand total</dt>
-            <dd>₹{invoice.grandTotal.toFixed(2)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt>Amount paid</dt>
-            <dd>₹{invoice.amountPaid.toFixed(2)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt>Amount due</dt>
-            <dd>₹{invoice.amountDue.toFixed(2)}</dd>
-          </div>
-        </dl>
 
-        {invoice.payments?.length > 0 && (
-          <div className="mt-4 border-t border-gray-200 pt-4">
-            <h2 className="text-sm font-semibold text-gray-900">Payments</h2>
-            <ul className="mt-2 space-y-1 text-sm">
-              {invoice.payments.map((p, i) => (
-                <li key={i}>
-                  ₹{p.amount.toFixed(2)} — {p.mode}
-                  {p.referenceNo ? ` (Ref: ${p.referenceNo})` : ''} — {new Date(p.receivedAt).toLocaleString('en-IN')}
-                </li>
-              ))}
-            </ul>
+          <div className="text-right flex flex-col items-end mt-4 sm:mt-0">
+            <h2 className="text-3xl font-light text-gray-400 uppercase tracking-widest mb-2">Invoice</h2>
+            {lab?.gstin && <p className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 border border-gray-200">GSTIN: {lab.gstin}</p>}
+            <p className="text-sm text-gray-600 mt-2"><strong>Invoice #:</strong> {invoice.id.split('-').pop()}</p>
+            <p className="text-sm text-gray-600"><strong>Date:</strong> {new Date(invoice.issuedAt).toLocaleDateString()}</p>
           </div>
-        )}
+        </div>
 
-        {invoice.gstin && (
-          <p className="mt-4 text-xs text-gray-500">GSTIN: {invoice.gstin} · HSN/SAC: {invoice.hsnSacCode ?? '—'}</p>
-        )}
+        {/* Patient & Order Details */}
+        <div className="flex flex-wrap justify-between gap-6 mb-8 text-sm text-gray-800">
+          <div className="w-full sm:w-1/2">
+            <h3 className="font-bold text-gray-900 mb-2 border-b border-gray-200 pb-1">Billed To:</h3>
+            <p className="font-semibold text-lg">{patient.name}</p>
+            <p><strong>Patient ID:</strong> {patient.patientCode}</p>
+            <p><strong>Age/Sex:</strong> {patient.ageYears || '-'}/{patient.gender}</p>
+            <p><strong>Mobile:</strong> {patient.mobile}</p>
+          </div>
+
+          <div className="w-full sm:w-1/3 text-left sm:text-right">
+            <h3 className="font-bold text-gray-900 mb-2 border-b border-gray-200 pb-1">Order Details:</h3>
+            <p><strong>Order ID:</strong> {invoice.order.orderCode}</p>
+            <p><strong>Status:</strong> <span className={invoice.status === 'paid' ? 'text-green-600 font-bold' : invoice.status === 'partial' ? 'text-orange-600 font-bold' : 'text-red-600 font-bold'}>{invoice.status.toUpperCase()}</span></p>
+          </div>
+        </div>
+
+        {/* Items Table */}
+        <table className="w-full mb-8 text-sm">
+          <thead>
+            <tr className="bg-gray-100 border-b-2 border-gray-300">
+              <th className="py-2 px-3 text-left font-semibold text-gray-900">#</th>
+              <th className="py-2 px-3 text-left font-semibold text-gray-900">Test / Profile Description</th>
+              {lab?.hsnSacCode && <th className="py-2 px-3 text-right font-semibold text-gray-900">HSN/SAC</th>}
+              <th className="py-2 px-3 text-right font-semibold text-gray-900">Amount (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items?.map((item: any, i: number) => (
+              <tr key={item.id} className="border-b border-gray-200">
+                <td className="py-3 px-3 text-gray-600">{i + 1}</td>
+                <td className="py-3 px-3 font-medium text-gray-900">{item.testDefinition.testName} <span className="text-xs text-gray-500 font-normal ml-1">({item.testDefinition.testCode})</span></td>
+                {lab?.hsnSacCode && <td className="py-3 px-3 text-right text-gray-600">{lab.hsnSacCode}</td>}
+                <td className="py-3 px-3 text-right font-medium text-gray-900">{Number(item.price).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Totals */}
+        <div className="flex flex-col sm:flex-row justify-between mb-12">
+          <div className="w-full sm:w-1/2 mb-6 sm:mb-0">
+            {invoice.payments && invoice.payments.length > 0 && (
+              <div className="bg-gray-50 p-4 border border-gray-200 text-xs">
+                <h4 className="font-bold text-gray-900 mb-2 border-b pb-1">Payment History</h4>
+                {invoice.payments.map((p: any) => (
+                  <div key={p.id} className="flex justify-between py-1">
+                    <span>{new Date(p.createdAt).toLocaleDateString()} - <span className="capitalize">{p.mode}</span> {p.referenceNo ? `(${p.referenceNo})` : ''}</span>
+                    <span className="font-semibold text-gray-900">₹{Number(p.amount).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="w-full sm:w-1/3 text-sm">
+            <div className="flex justify-between py-1 border-b border-gray-100 text-gray-700">
+              <span>Subtotal</span>
+              <span>₹{Number(invoice.subTotal).toFixed(2)}</span>
+            </div>
+            {Number(invoice.discountTotal) > 0 && (
+              <div className="flex justify-between py-1 border-b border-gray-100 text-green-700">
+                <span>Discount</span>
+                <span>-₹{Number(invoice.discountTotal).toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between py-1 border-b border-gray-100 text-gray-700">
+              <span>Taxes (Included)</span>
+              <span>₹{Number(invoice.taxTotal).toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between py-2 border-b-2 border-gray-900 font-bold text-lg text-gray-900 mt-2">
+              <span>Grand Total</span>
+              <span>₹{Number(invoice.grandTotal).toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between py-1 mt-2 text-green-700 font-medium">
+              <span>Amount Paid</span>
+              <span>₹{Number(invoice.amountPaid).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between py-1 text-red-700 font-bold">
+              <span>Balance Due</span>
+              <span>₹{Number(invoice.amountDue).toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Notes */}
+        <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-6">
+          <p>Thank you for choosing {lab?.name || 'LabCore'}.</p>
+          <p>This is a computer generated invoice and does not require a physical signature.</p>
+        </div>
+
       </div>
 
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `.no-print { } @media print { .no-print { display: none !important; } body { padding: 0; } #receipt { max-width: none; } }`,
-        }}
-      />
+      <style jsx global>{`
+                @media print {
+                    @page { size: auto; margin: 10mm; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+            `}</style>
     </div>
   );
 }

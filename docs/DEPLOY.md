@@ -26,6 +26,8 @@ The repo is already initialized and `.gitignore` is set (including un-ignoring `
    git push -u origin main
    ```
 
+   Use only the message above—do not add a `Co-authored-by` trailer. (To stop Cursor from adding one automatically, turn off **Cursor Settings → Agent → Attribution**.)
+
 Replace `YOUR_USERNAME` with your GitHub username.
 
 ---

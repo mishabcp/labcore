@@ -39,8 +39,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+    <main className="flex min-h-screen flex-col items-center justify-center p-8" aria-label="Login">
+      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-sm" role="region" aria-label="Sign in form">
         <h1 className="text-xl font-bold text-gray-900">LabCore</h1>
         <p className="mt-1 text-sm text-gray-600">Sign in to your lab</p>
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -50,12 +50,14 @@ export default function LoginPage() {
             </label>
             <input
               id="mobile"
-              type="text"
+              type="tel"
+              autoComplete="tel"
               value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              onChange={(e: any) => setMobile(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
               placeholder="e.g. 9876543210"
               required
+              aria-required="true"
             />
           </div>
           <div>
@@ -65,13 +67,15 @@ export default function LoginPage() {
             <input
               id="password"
               type="password"
+              autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              onChange={(e: any) => setPassword(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
               required
+              aria-required="true"
             />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600" role="alert" aria-live="assertive">{error}</p>}
           <button
             type="submit"
             disabled={loading}

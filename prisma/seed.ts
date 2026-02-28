@@ -441,8 +441,148 @@ async function main() {
       });
     }
 
-    const reportedCount = ordersToCreate.filter((s) => s.status === 'reported').length;
-    console.log(`Seed done. Demo lab: ${lab.slug}. Login: 9876543210 / demo123. Demo orders: ${ordersToCreate.length} (${reportedCount} reported).`);
+    // ==========================================
+    // EXPLICIT WORKFLOW SEED: Thasna (Requested)
+    // ==========================================
+    const thasna = await prisma.patient.create({
+      data: {
+        labId: lab.id,
+        patientCode: 'PAT-THASNA',
+        name: 'Thasna',
+        gender: 'female',
+        mobile: '9497386759',
+        email: 'thasnacp@gmail.com',
+        ageYears: 21,
+      }
+    });
+
+    const thasnaOrder = await prisma.order.create({
+      data: {
+        labId: lab.id,
+        orderCode: `ORD-${demoDate}-THASNA`,
+        patientId: thasna.id,
+        status: 'reported',
+        priority: 'routine',
+        registeredById: adminUser.id,
+        completedAt: new Date(),
+        reportedAt: new Date(),
+      }
+    });
+
+    // Add tests: Haemoglobin (Low) and Glucose Fasting (High)
+    const thasnaTests = [hb, glu];
+    let thasnaSubtotal = 0;
+
+    for (let tIdx = 0; tIdx < thasnaTests.length; tIdx++) {
+      const test = thasnaTests[tIdx];
+      const price = typeof test.price === 'object' && 'toNumber' in test.price ? (test.price as { toNumber: () => number }).toNumber() : Number(test.price);
+      thasnaSubtotal += price;
+
+      const orderItem = await prisma.orderItem.create({
+        data: {
+          labId: lab.id,
+          orderId: thasnaOrder.id,
+          testDefinitionId: test.id,
+          price,
+        }
+      });
+
+      const sample = await prisma.sample.create({
+        data: {
+          labId: lab.id,
+          sampleCode: `${thasnaOrder.orderCode}-0${tIdx + 1}`,
+          orderId: thasnaOrder.id,
+          sampleType: test.sampleType,
+          tubeColour: test.tubeColour,
+          barcodeData: orderItem.id,
+          status: 'completed',
+        }
+      });
+
+      const result = await prisma.result.create({
+        data: {
+          labId: lab.id,
+          orderItemId: orderItem.id,
+          sampleId: sample.id,
+          status: 'authorised',
+          authorisedById: adminUser.id,
+          authorisedAt: new Date(),
+        }
+      });
+
+      // Insert Result Values (Targeted abnormal values)
+      if (test.testCode === 'HB') {
+        const hbParam = await prisma.testParameter.findFirstOrThrow({ where: { testDefinitionId: test.id } });
+        await prisma.resultValue.create({
+          data: {
+            labId: lab.id,
+            resultId: result.id,
+            testParameterId: hbParam.id,
+            numericValue: 9.5, // Abnormal Low (Ref: 12-15.5)
+            abnormalFlag: 'L',
+            refRangeLow: 12.0,
+            refRangeHigh: 15.5,
+            unit: 'g/dL',
+          }
+        });
+      } else if (test.testCode === 'GLU') {
+        const gluParam = await prisma.testParameter.findFirstOrThrow({ where: { testDefinitionId: test.id } });
+        await prisma.resultValue.create({
+          data: {
+            labId: lab.id,
+            resultId: result.id,
+            testParameterId: gluParam.id,
+            numericValue: 125.0, // Abnormal High (Ref: 70-100)
+            abnormalFlag: 'H',
+            refRangeLow: 70.0,
+            refRangeHigh: 100.0,
+            unit: 'mg/dL',
+          }
+        });
+      }
+    }
+
+    // Invoice and Payment
+    const thasnaTax = Math.round(thasnaSubtotal * 0.18 * 100) / 100;
+    const thasnaTotal = Math.round((thasnaSubtotal + thasnaTax) * 100) / 100;
+    const thasnaInvoice = await prisma.invoice.create({
+      data: {
+        labId: lab.id,
+        invoiceCode: `${invPrefix}THASNA`,
+        orderId: thasnaOrder.id,
+        patientId: thasna.id,
+        subtotal: thasnaSubtotal,
+        taxAmount: thasnaTax,
+        grandTotal: thasnaTotal,
+        amountPaid: thasnaTotal,
+        amountDue: 0,
+        status: 'paid',
+        issuedById: adminUser.id,
+      }
+    });
+
+    await prisma.payment.create({
+      data: {
+        labId: lab.id,
+        invoiceId: thasnaInvoice.id,
+        amount: thasnaTotal,
+        mode: 'upi',
+        receivedById: adminUser.id,
+      }
+    });
+
+    // Report
+    await prisma.report.create({
+      data: {
+        labId: lab.id,
+        orderId: thasnaOrder.id,
+        reportCode: `RPT-${thasnaOrder.orderCode}-v1`,
+        generatedById: adminUser.id,
+      }
+    });
+
+    const reportedCount = ordersToCreate.filter((s) => s.status === 'reported').length + 1;
+    console.log(`Seed done. Demo lab: ${lab.slug}. Login: 9876543210 / demo123. Demo orders: ${ordersToCreate.length + 1} (${reportedCount} reported). Includes patient Thasna.`);
   } else {
     console.log('Seed done. Demo lab:', lab.slug, 'Login: 9876543210 / demo123');
   }

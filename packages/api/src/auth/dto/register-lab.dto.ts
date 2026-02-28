@@ -1,4 +1,4 @@
-import { IsString, IsEmail, MinLength, IsOptional } from 'class-validator';
+import { IsString, IsEmail, MinLength, IsOptional, Matches } from 'class-validator';
 
 export class RegisterLabDto {
   @IsString()
@@ -18,6 +18,7 @@ export class RegisterLabDto {
   adminMobile!: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
+  @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, { message: 'Password must contain uppercase, lowercase, and a number or special character.' })
   password!: string;
 }

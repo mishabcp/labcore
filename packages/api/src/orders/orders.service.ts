@@ -12,7 +12,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly rateCards: RateCardsService,
-  ) {}
+  ) { }
 
   async create(
     labId: string,
@@ -30,7 +30,7 @@ export class OrdersService {
         labId,
         isActive: true,
       },
-      include: { parameters: true },
+      include: { parameters: true, panelComponents: true },
     });
     if (tests.length !== dto.testDefinitionIds.length) {
       throw new BadRequestException('One or more tests not found');
@@ -57,10 +57,23 @@ export class OrdersService {
         },
       });
 
+      const zeroPriceTestIds = new Set<string>();
+      for (const t of tests) {
+        if (t.isPanel && t.panelComponents) {
+          const panelPrice = priceMap?.get(t.id) ?? (t.price instanceof Decimal ? t.price.toNumber() : Number(t.price));
+          if (panelPrice > 0) {
+            t.panelComponents.forEach(pc => zeroPriceTestIds.add(pc.testDefinitionId));
+          }
+        }
+      }
+
       let sampleIndex = 0;
       for (const test of tests) {
-        const price =
+        let price =
           priceMap?.get(test.id) ?? (test.price instanceof Decimal ? test.price.toNumber() : Number(test.price));
+        if (zeroPriceTestIds.has(test.id)) {
+          price = 0;
+        }
         const orderItem = await tx.orderItem.create({
           data: {
             labId,
@@ -146,6 +159,7 @@ export class OrdersService {
           patient: true,
           orderItems: { include: { testDefinition: true } },
           samples: true,
+          invoices: true,
         },
       });
     });
@@ -157,6 +171,127 @@ export class OrdersService {
       });
     }
     return order;
+  }
+
+  async addItemsToOrder(labId: string, orderId: string, userId: string, testDefinitionIds: string[]) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, labId, deletedAt: null },
+      include: { orderItems: true, invoices: { orderBy: { issuedAt: 'desc' }, take: 1 }, samples: true }
+    });
+    if (!order) throw new BadRequestException('Order not found');
+
+    const existingTestIds = order.orderItems.filter(i => !i.cancelledAt).map(i => i.testDefinitionId);
+    const newTestIds = testDefinitionIds.filter(id => !existingTestIds.includes(id));
+    if (newTestIds.length === 0) throw new BadRequestException('Tests are already in order or no tests provided');
+
+    const tests = await this.prisma.testDefinition.findMany({
+      where: { id: { in: newTestIds }, labId, isActive: true },
+      include: { parameters: true, panelComponents: true },
+    });
+    if (tests.length !== newTestIds.length) {
+      throw new BadRequestException('One or more tests not found or inactive');
+    }
+
+    const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      const zeroPriceTestIds = new Set<string>();
+      for (const t of tests) {
+        if (t.isPanel && t.panelComponents) {
+          const panelPrice = t.price instanceof Decimal ? t.price.toNumber() : Number(t.price);
+          if (panelPrice > 0) {
+            t.panelComponents.forEach((pc: any) => zeroPriceTestIds.add(pc.testDefinitionId));
+          }
+        }
+      }
+
+      let sampleIndex = order.samples.length;
+
+      for (const test of tests) {
+        let price = test.price instanceof Decimal ? test.price.toNumber() : Number(test.price);
+        if (zeroPriceTestIds.has(test.id)) price = 0;
+
+        const orderItem = await tx.orderItem.create({
+          data: {
+            labId,
+            orderId: order.id,
+            testDefinitionId: test.id,
+            price: price,
+          },
+        });
+
+        const sampleCode = `${order.orderCode}-${(sampleIndex + 1).toString().padStart(2, '0')}`;
+        const barcodeData = orderItem.id;
+        const sample = await tx.sample.create({
+          data: {
+            labId,
+            sampleCode,
+            orderId: order.id,
+            sampleType: test.sampleType,
+            tubeColour: test.tubeColour ?? null,
+            barcodeData,
+          },
+        });
+        await tx.result.create({
+          data: {
+            labId,
+            orderItemId: orderItem.id,
+            sampleId: sample.id,
+          },
+        });
+        sampleIndex += 1;
+      }
+
+      // Update the invoice if one exists
+      const invoice = order.invoices[0];
+      if (invoice) {
+        const allItems = await tx.orderItem.findMany({
+          where: { orderId: order.id, cancelledAt: null },
+          select: { price: true },
+        });
+        const subtotal = allItems.reduce(
+          (sum, i) => sum + (i.price instanceof Decimal ? i.price.toNumber() : Number(i.price)),
+          0,
+        );
+        let discountTotal = invoice.discountTotal instanceof Decimal ? invoice.discountTotal.toNumber() : Number(invoice.discountTotal);
+        if (discountTotal > subtotal) discountTotal = subtotal; // cap discount
+
+        let taxAmount = invoice.taxAmount instanceof Decimal ? invoice.taxAmount.toNumber() : Number(invoice.taxAmount);
+        // Recalculate tax if it was previously non-zero
+        if (taxAmount > 0) {
+          taxAmount = Math.round((subtotal - discountTotal) * 0.18 * 100) / 100;
+        }
+
+        const grandTotal = Math.round((subtotal - discountTotal + taxAmount) * 100) / 100;
+        const amountPaid = invoice.amountPaid instanceof Decimal ? invoice.amountPaid.toNumber() : Number(invoice.amountPaid);
+        const amountDue = Math.round((grandTotal - amountPaid) * 100) / 100;
+
+        await tx.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            subtotal,
+            discountTotal,
+            taxAmount,
+            grandTotal,
+            amountDue,
+            status: amountDue <= 0 ? 'paid' : amountPaid > 0 ? 'partial' : 'issued'
+          },
+        });
+      }
+
+      return tx.order.findUnique({
+        where: { id: order.id },
+        include: {
+          patient: true,
+          orderItems: { include: { testDefinition: true } },
+          samples: true,
+          invoices: true,
+        },
+      });
+    });
+
+    await this.audit.log(labId, userId, 'order_amend', 'order', order.id, undefined, {
+      newTests: newTestIds,
+    });
+    return updatedOrder;
   }
 
   async findAll(labId: string, limit = 50) {

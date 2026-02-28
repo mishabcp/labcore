@@ -12,11 +12,16 @@ interface JwtUser {
 @Controller('invoices')
 @UseGuards(JwtAuthGuard)
 export class InvoicesController {
-  constructor(private readonly invoices: InvoicesService) {}
+  constructor(private readonly invoices: InvoicesService) { }
 
   @Get()
   async list(@CurrentUser() user: JwtUser, @Query('limit') limit?: string) {
     return this.invoices.findAll(user.labId, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  @Get('daily-summary')
+  async getDailySummary(@CurrentUser() user: JwtUser, @Query('date') date: string) {
+    return this.invoices.getDailySummary(user.labId, date || new Date().toISOString().split('T')[0]);
   }
 
   @Get('by-order/:orderId')

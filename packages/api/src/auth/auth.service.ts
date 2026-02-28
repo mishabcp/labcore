@@ -22,7 +22,7 @@ export interface AuthResult {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
-  user: { id: string; name: string; email: string | null; mobile: string; role: $Enums.UserRole; labId: string; labName: string };
+  user: { id: string; name: string; email: string | null; mobile: string; role: $Enums.UserRole; labId: string; labName: string; languagePref: string };
 }
 
 @Injectable()
@@ -31,7 +31,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly audit: AuditService,
-  ) {}
+  ) { }
 
   async registerLab(dto: RegisterLabDto): Promise<AuthResult> {
     const slug = dto.labName
@@ -112,7 +112,7 @@ export class AuthService {
   }
 
   private async issueTokens(
-    user: { id: string; name: string; email: string | null; mobile: string; role: $Enums.UserRole; labId: string },
+    user: { id: string; name: string; email: string | null; mobile: string; role: $Enums.UserRole; labId: string; languagePref: string },
     lab: { id: string; name: string },
   ): Promise<AuthResult> {
     const accessPayload: TokenPayload = {
@@ -155,6 +155,7 @@ export class AuthService {
         role: user.role,
         labId: user.labId,
         labName: lab.name,
+        languagePref: user.languagePref,
       },
     };
   }

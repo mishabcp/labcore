@@ -14,7 +14,7 @@ export default function Home() {
     fetch(`${API_URL}/health`)
       .then((res) => res.json())
       .then(setHealth)
-      .catch((e) => setError(e.message));
+      .catch((e: any) => setError(e.message));
   }, []);
 
   return (

@@ -8,12 +8,31 @@ export class SamplesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-  ) {}
+  ) { }
 
-  async findAll(labId: string, status?: $Enums.SampleStatus, limit = 100) {
-    const where = { labId };
+  async getStatusCounts(labId: string) {
+    const counts = await this.prisma.sample.groupBy({
+      by: ['status'],
+      where: { labId },
+      _count: { status: true },
+    });
+    const result: Record<string, number> = {};
+    for (const c of counts) {
+      result[c.status] = c._count.status;
+    }
+    return result;
+  }
+
+  async findAll(labId: string, status?: $Enums.SampleStatus, search?: string, limit = 100) {
+    const where: any = { labId };
     if (status) {
-      (where as { status?: $Enums.SampleStatus }).status = status;
+      where.status = status;
+    }
+    if (search) {
+      where.OR = [
+        { sampleCode: { contains: search, mode: 'insensitive' } },
+        { barcodeData: { contains: search, mode: 'insensitive' } },
+      ];
     }
     return this.prisma.sample.findMany({
       where,

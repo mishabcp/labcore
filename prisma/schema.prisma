@@ -349,6 +349,11 @@ model Order {
   samples            Sample[]
   invoices           Invoice[]
   reports            Report[]
+
+  @@unique([labId, orderCode])
+  @@index([labId, status])
+  @@index([labId, createdAt])
+  @@index([labId, patientId])
 }
 
 model OrderItem {
@@ -369,6 +374,9 @@ model OrderItem {
   order              Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   testDefinition     TestDefinition @relation(fields: [testDefinitionId], references: [id])
   results            Result[]
+
+  @@index([orderId])
+  @@index([labId, testDefinitionId])
 }
 
 model Sample {
@@ -396,6 +404,10 @@ model Sample {
   order           Order        @relation(fields: [orderId], references: [id])
   sampleEvents    SampleEvent[]
   results         Result[]
+
+  @@unique([labId, sampleCode])
+  @@index([labId, status])
+  @@index([orderId])
 }
 
 model SampleEvent {
@@ -433,6 +445,10 @@ model Result {
   orderItem         OrderItem    @relation(fields: [orderItemId], references: [id])
   sample            Sample       @relation(fields: [sampleId], references: [id])
   resultValues      ResultValue[]
+
+  @@index([labId, status])
+  @@index([orderItemId])
+  @@index([sampleId])
 }
 
 model ResultValue {
@@ -475,6 +491,10 @@ model Report {
   lab                 Lab      @relation(fields: [labId], references: [id])
   order               Order     @relation(fields: [orderId], references: [id])
   deliveries          ReportDelivery[]
+
+  @@unique([labId, reportCode])
+  @@index([labId, orderId])
+  @@index([labId, createdAt])
 }
 
 model ReportDelivery {
@@ -523,6 +543,11 @@ model Invoice {
   order          Order         @relation(fields: [orderId], references: [id])
   patient        Patient       @relation(fields: [patientId], references: [id])
   payments       Payment[]
+
+  @@unique([labId, invoiceCode])
+  @@index([labId, status])
+  @@index([labId, orderId])
+  @@index([labId, patientId])
 }
 
 model Payment {
@@ -540,6 +565,9 @@ model Payment {
   lab         Lab         @relation(fields: [labId], references: [id])
   invoice     Invoice     @relation(fields: [invoiceId], references: [id])
   receivedBy  User        @relation("PaymentsReceived", fields: [receivedById], references: [id])
+
+  @@index([labId, invoiceId])
+  @@index([labId, receivedAt])
 }
 
 model RateCard {
@@ -586,4 +614,7 @@ model AuditLog {
 
   lab        Lab      @relation(fields: [labId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
+
+  @@index([labId, createdAt])
+  @@index([labId, entityType, entityId])
 }

@@ -1,0 +1,38 @@
+{
+    "common": {
+        "save": "Save",
+        "cancel": "Cancel",
+        "edit": "Edit",
+        "delete": "Delete",
+        "add": "Add",
+        "search": "Search...",
+        "loading": "Loading...",
+        "success": "Success",
+        "error": "Error",
+        "logout": "Logout",
+        "dashboard": "Dashboard"
+    },
+    "nav": {
+        "dashboard": "Dashboard",
+        "orders": "Orders",
+        "samples": "Samples",
+        "results": "Results",
+        "reports": "Reports",
+        "invoices": "Invoices",
+        "patients": "Patients",
+        "settings": "Settings"
+    },
+    "settings": {
+        "title": "Settings",
+        "labProfile": "Lab Profile",
+        "users": "Users",
+        "tests": "Test Master",
+        "reportTemplate": "Report Template",
+        "language": "Language",
+        "english": "English",
+        "malayalam": "Malayalam",
+        "saveProfile": "Save Profile",
+        "logo": "Lab Logo",
+        "signature": "Pathologist Signature"
+    }
+}

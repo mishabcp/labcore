@@ -1,5 +1,6 @@
-import { Body, Controller, Post, UseGuards, Get } from '@nestjs/common';
+import { Body, Controller, Post, Patch, UseGuards, Get } from '@nestjs/common';
 import { AuthService, AuthResult } from './auth.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { RegisterLabDto } from './dto/register-lab.dto';
 import { User } from '@prisma/client';
 import { LoginDto } from './dto/login.dto';
@@ -14,11 +15,15 @@ interface UserWithLab {
   role: string;
   labId: string;
   lab: { name: string };
+  languagePref: string;
 }
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly prisma: PrismaService,
+  ) { }
 
   @Post('register-lab')
   async registerLab(@Body() dto: RegisterLabDto): Promise<AuthResult> {
@@ -46,6 +51,23 @@ export class AuthController {
       role: user.role,
       labId: user.labId,
       labName: user.lab?.name ?? '',
+      languagePref: user.languagePref,
     };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('language')
+  async updateLanguagePref(
+    @CurrentUser() user: UserWithLab,
+    @Body('languagePref') languagePref: string,
+  ) {
+    if (languagePref !== 'en' && languagePref !== 'ml') {
+      languagePref = 'en';
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { languagePref },
+    });
+    return { success: true };
   }
 }

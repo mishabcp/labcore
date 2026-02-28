@@ -1,0 +1,9 @@
+src/app/dashboard/settings/tests/page.tsx(7,79): error TS2307: Cannot find module '@/components/ui/table' or its corresponding type declarations.
+src/app/dashboard/settings/tests/page.tsx(8,23): error TS2307: Cannot find module '@/components/ui/badge' or its corresponding type declarations.
+src/app/dashboard/settings/users/page.tsx(14,8): error TS2307: Cannot find module '@/components/ui/table' or its corresponding type declarations.
+src/app/dashboard/settings/users/page.tsx(15,23): error TS2307: Cannot find module '@/components/ui/badge' or its corresponding type declarations.
+src/app/dashboard/settings/users/page.tsx(17,10): error TS2305: Module '"@/lib/utils"' has no exported member 'formatDate'.
+src/lib/api.ts(1,19): error TS2307: Cannot find module 'axios' or its corresponding type declarations.
+src/lib/api.ts(7,31): error TS7006: Parameter 'config' implicitly has an 'any' type.
+src/lib/api.ts(18,6): error TS7006: Parameter 'response' implicitly has an 'any' type.
+src/lib/api.ts(21,6): error TS7006: Parameter 'error' implicitly has an 'any' type.

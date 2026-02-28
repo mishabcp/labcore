@@ -13,18 +13,24 @@ interface JwtUser {
 @Controller('samples')
 @UseGuards(JwtAuthGuard)
 export class SamplesController {
-  constructor(private readonly samples: SamplesService) {}
+  constructor(private readonly samples: SamplesService) { }
 
   @Get()
   async list(
     @CurrentUser() user: JwtUser,
     @Query('status') status?: string,
+    @Query('search') search?: string,
     @Query('limit') limit?: string,
   ) {
     const statusEnum = status && Object.values($Enums.SampleStatus).includes(status as $Enums.SampleStatus)
       ? (status as $Enums.SampleStatus)
       : undefined;
-    return this.samples.findAll(user.labId, statusEnum, limit ? parseInt(limit, 10) : undefined);
+    return this.samples.findAll(user.labId, statusEnum, search, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  @Get('dashboard-counts')
+  async getCounts(@CurrentUser() user: JwtUser) {
+    return this.samples.getStatusCounts(user.labId);
   }
 
   @Get(':id')

@@ -42,7 +42,7 @@ export default function PatientsPage() {
           type="search"
           placeholder="Search by name, mobile, or ID..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e: any) => setSearch(e.target.value)}
           className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 text-sm"
         />
       </div>

@@ -71,7 +71,7 @@ export default function RateCardsPage() {
         <input
           type="text"
           value={createName}
-          onChange={(e) => setCreateName(e.target.value)}
+          onChange={(e: any) => setCreateName(e.target.value)}
           placeholder="New rate card name"
           className="rounded-md border border-gray-300 px-3 py-2 text-sm"
         />

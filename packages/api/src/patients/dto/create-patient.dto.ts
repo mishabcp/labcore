@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsDateString, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsDateString, Min, Max, Matches, IsEmail } from 'class-validator';
 import { $Enums } from '../../prisma/client-types';
 
 export class CreatePatientDto {
@@ -29,10 +29,11 @@ export class CreatePatientDto {
   gender!: $Enums.GenderType;
 
   @IsString()
+  @Matches(/^[0-9]{10}$/, { message: 'Mobile number must be exactly 10 digits' })
   mobile!: string;
 
   @IsOptional()
-  @IsString()
+  @IsEmail({}, { message: 'Invalid email format' })
   email?: string;
 
   @IsOptional()

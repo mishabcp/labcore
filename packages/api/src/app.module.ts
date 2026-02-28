@@ -12,6 +12,8 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuditModule } from './audit/audit.module';
 import { RateCardsModule } from './rate-cards/rate-cards.module';
+import { UsersModule } from './users/users.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { RateCardsModule } from './rate-cards/rate-cards.module';
     ReportsModule,
     InvoicesModule,
     DashboardModule,
+    UsersModule,
+    SettingsModule,
   ],
   controllers: [HealthController],
 })

@@ -14,7 +14,7 @@ export default function ResultsPage() {
   const [results, setResults] = useState<Array<{
     id: string;
     status: string;
-    orderItem?: { testDefinition?: { testName: string }; order?: { patient?: { name: string }; orderCode?: string } };
+    orderItem?: { testDefinition?: { testName: string }; order?: { patient?: { name: string }; orderCode?: string, priority?: string } };
   }>>([]);
   const [statusFilter, setStatusFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
@@ -36,7 +36,7 @@ export default function ResultsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Results worklist</h1>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e: any) => setStatusFilter(e.target.value)}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm"
         >
           <option value="pending">Pending</option>
@@ -54,6 +54,7 @@ export default function ResultsPage() {
               <tr>
                 <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Patient</th>
                 <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Test</th>
+                <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Priority</th>
                 <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Status</th>
                 <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Action</th>
               </tr>
@@ -63,6 +64,11 @@ export default function ResultsPage() {
                 <tr key={r.id}>
                   <td className="px-4 py-2 text-sm text-gray-900">{r.orderItem?.order?.patient?.name ?? '—'}</td>
                   <td className="px-4 py-2 text-sm text-gray-600">{r.orderItem?.testDefinition?.testName ?? '—'}</td>
+                  <td className="px-4 py-2 text-sm">
+                    {r.orderItem?.order?.priority === 'stat' && <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">STAT</span>}
+                    {r.orderItem?.order?.priority === 'urgent' && <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Urgent</span>}
+                    {(r.orderItem?.order?.priority === 'routine' || !r.orderItem?.order?.priority) && <span className="text-gray-500">Routine</span>}
+                  </td>
                   <td className="px-4 py-2 text-sm text-gray-600">{r.status}</td>
                   <td className="px-4 py-2 text-sm">
                     <Link href={`/dashboard/results/${r.id}`} className="text-blue-600 hover:underline">

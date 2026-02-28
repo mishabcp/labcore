@@ -62,7 +62,7 @@ export default function RegisterLabPage() {
               id="labName"
               type="text"
               value={labName}
-              onChange={(e) => setLabName(e.target.value)}
+              onChange={(e: any) => setLabName(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               required
             />
@@ -75,7 +75,7 @@ export default function RegisterLabPage() {
               id="adminName"
               type="text"
               value={adminName}
-              onChange={(e) => setAdminName(e.target.value)}
+              onChange={(e: any) => setAdminName(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               required
             />
@@ -88,7 +88,7 @@ export default function RegisterLabPage() {
               id="adminMobile"
               type="text"
               value={adminMobile}
-              onChange={(e) => setAdminMobile(e.target.value)}
+              onChange={(e: any) => setAdminMobile(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               placeholder="e.g. 9876543210"
               required
@@ -102,7 +102,7 @@ export default function RegisterLabPage() {
               id="adminEmail"
               type="email"
               value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
+              onChange={(e: any) => setAdminEmail(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
@@ -114,7 +114,7 @@ export default function RegisterLabPage() {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e: any) => setPassword(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               minLength={6}
               required

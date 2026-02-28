@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -12,7 +12,24 @@
     "sourceMap": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noEmit": true
+    "noEmit": true,
+    "jsx": "preserve",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "packages/web/src/*"
+      ],
+      "@labcore/api": [
+        "packages/api/src"
+      ],
+      "@labcore/shared": [
+        "packages/shared/src"
+      ]
+    }
   },
-  "exclude": ["node_modules", "**/dist", "**/.next"]
+  "exclude": [
+    "node_modules",
+    "**/dist",
+    "**/.next"
+  ]
 }

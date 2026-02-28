@@ -117,7 +117,7 @@ function BillingSection({
               min="0.01"
               max={amountDue}
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e: any) => setAmount(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               required
             />
@@ -126,7 +126,7 @@ function BillingSection({
             <label className="block text-sm font-medium text-gray-700">Mode</label>
             <select
               value={mode}
-              onChange={(e) => setMode(e.target.value as (typeof PAYMENT_MODES)[number])}
+              onChange={(e: any) => setMode(e.target.value as (typeof PAYMENT_MODES)[number])}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             >
               {PAYMENT_MODES.map((m) => (
@@ -139,7 +139,7 @@ function BillingSection({
             <input
               type="text"
               value={referenceNo}
-              onChange={(e) => setReferenceNo(e.target.value)}
+              onChange={(e: any) => setReferenceNo(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
@@ -198,6 +198,13 @@ export default function OrderDetailPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
+  // Add tests modal
+  const [addTestsModal, setAddTestsModal] = useState(false);
+  const [availableTests, setAvailableTests] = useState<any[]>([]);
+  const [testSearch, setTestSearch] = useState('');
+  const [selectedNewTestIds, setSelectedNewTestIds] = useState<Set<string>>(new Set());
+  const [addingTests, setAddingTests] = useState(false);
+
   function refetchOrder() {
     const token = getToken();
     if (!token || !id) return;
@@ -212,6 +219,58 @@ export default function OrderDetailPage() {
   useEffect(() => {
     refetchOrder();
   }, [id]);
+
+  useEffect(() => {
+    if (addTestsModal && availableTests.length === 0) {
+      const token = getToken();
+      if (token) {
+        fetch(`${API_URL}/tests`, { headers: { Authorization: `Bearer ${token}` } })
+          .then((res) => res.json())
+          .then((data) => setAvailableTests(data.filter((t: any) => t.isActive)))
+          .catch(() => { });
+      }
+    }
+  }, [addTestsModal]);
+
+  function toggleNewTest(t: any) {
+    setSelectedNewTestIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(t.id)) {
+        next.delete(t.id);
+        if (t.isPanel && t.panelComponents) {
+          t.panelComponents.forEach((pc: any) => next.delete(pc.testDefinitionId));
+        }
+      } else {
+        next.add(t.id);
+        if (t.isPanel && t.panelComponents) {
+          t.panelComponents.forEach((pc: any) => next.add(pc.testDefinitionId));
+        }
+      }
+      return next;
+    });
+  }
+
+  async function handleAddTests() {
+    if (selectedNewTestIds.size === 0) return;
+    setAddingTests(true);
+    const token = getToken();
+    try {
+      const res = await fetch(`${API_URL}/orders/${id}/add-items`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testDefinitionIds: Array.from(selectedNewTestIds) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? 'Failed to add tests');
+      setAddTestsModal(false);
+      setSelectedNewTestIds(new Set());
+      refetchOrder();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setAddingTests(false);
+    }
+  }
 
   async function handleGenerateReport() {
     const token = getToken();
@@ -277,7 +336,7 @@ export default function OrderDetailPage() {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ channel: 'whatsapp', recipientContact: data.patientMobile }),
-        }).catch(() => {});
+        }).catch(() => { });
       }
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed');
@@ -410,7 +469,15 @@ export default function OrderDetailPage() {
           </div>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900">Tests</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Tests</h2>
+            <button
+              onClick={() => setAddTestsModal(true)}
+              className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline"
+            >
+              + Add Tests
+            </button>
+          </div>
           <ul className="mt-2 list-inside list-disc text-sm text-gray-600">
             {order.orderItems?.map((item) => (
               <li key={item.id}>
@@ -450,7 +517,7 @@ export default function OrderDetailPage() {
               <p className="mt-1 text-sm text-gray-500">This cannot be undone. Provide a reason (required).</p>
               <textarea
                 value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
+                onChange={(e: any) => setCancelReason(e.target.value)}
                 placeholder="Reason for cancellation"
                 rows={3}
                 className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
@@ -475,8 +542,82 @@ export default function OrderDetailPage() {
             </div>
           </div>
         )}
+
+        {addTestsModal && order && (
+          <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50 p-4">
+            <div className="rounded-lg bg-white p-6 shadow-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
+              <h3 className="font-semibold text-gray-900">Add Tests to Order</h3>
+              <p className="mt-1 text-sm text-gray-500 mb-4">Select the tests you want to add to this existing order.</p>
+
+              <input
+                type="text"
+                placeholder="Search tests..."
+                value={testSearch}
+                onChange={(e) => setTestSearch(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm mb-4"
+              />
+
+              <div className="flex-1 overflow-y-auto min-h-0 border border-gray-200 rounded-md">
+                <ul className="divide-y divide-gray-200">
+                  {availableTests
+                    .filter(t => !order.orderItems.some((oi: any) => oi.testDefinitionId === t.id && !oi.cancelledAt))
+                    .filter(t => t.testName.toLowerCase().includes(testSearch.toLowerCase()) || t.testCode.toLowerCase().includes(testSearch.toLowerCase()))
+                    .map(test => (
+                      <li key={test.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{test.testName}</p>
+                          <p className="text-xs text-gray-500">{test.testCode} • ₹{test.price != null ? Number(test.price).toFixed(2) : '0.00'}</p>
+                        </div>
+                        <button
+                          onClick={() => toggleNewTest(test)}
+                          className={`px-3 py-1 rounded text-xs font-medium border ${selectedNewTestIds.has(test.id) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          {selectedNewTestIds.has(test.id) ? 'Selected' : 'Select'}
+                        </button>
+                      </li>
+                    ))}
+                  {availableTests.length > 0 && availableTests.filter(t => t.testName.toLowerCase().includes(testSearch.toLowerCase()) || t.testCode.toLowerCase().includes(testSearch.toLowerCase())).length === 0 && (
+                    <li className="p-4 text-center text-sm text-gray-500">No tests match your search.</li>
+                  )}
+                </ul>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2 shrink-0 border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  disabled={addingTests}
+                  onClick={() => { setAddTestsModal(false); setSelectedNewTestIds(new Set()); setTestSearch(''); }}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={addingTests || selectedNewTestIds.size === 0}
+                  onClick={handleAddTests}
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {addingTests ? 'Adding...' : `Add ${selectedNewTestIds.size} Tests`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900">Samples</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Samples</h2>
+            {order.samples && order.samples.length > 0 && (
+              <Link
+                href={`/dashboard/orders/${id}/labels`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1"
+              >
+                Print all labels
+              </Link>
+            )}
+          </div>
           <ul className="mt-2 list-inside list-disc text-sm text-gray-600">
             {order.samples?.map((s) => (
               <li key={s.id}>

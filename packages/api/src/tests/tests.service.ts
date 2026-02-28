@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class TestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findAll(labId: string, search?: string, panelsOnly?: boolean) {
     const where: Prisma.TestDefinitionWhereInput = { labId, isActive: true };
@@ -50,6 +50,48 @@ export class TestsService {
           },
         },
       },
+    });
+  }
+
+  async createTest(labId: string, userId: string, data: any) {
+    const test = await this.prisma.testDefinition.create({
+      data: {
+        ...data,
+        labId,
+      },
+    });
+    // Optional: Log audit
+    return test;
+  }
+
+  async updateTest(labId: string, id: string, userId: string, data: any) {
+    const test = await this.prisma.testDefinition.update({
+      where: { id, labId },
+      data,
+    });
+    return test;
+  }
+
+  async deactivateTest(labId: string, id: string, userId: string) {
+    return this.prisma.testDefinition.update({
+      where: { id, labId },
+      data: { isActive: false },
+    });
+  }
+
+  async addParameter(labId: string, testId: string, userId: string, data: any) {
+    return this.prisma.testParameter.create({
+      data: {
+        ...data,
+        testDefinitionId: testId,
+      },
+    });
+  }
+
+  async updateParameter(labId: string, testId: string, paramId: string, userId: string, data: any) {
+    return this.prisma.testParameter.update({
+      where: { id: paramId, testDefinitionId: testId },
+      data,
     });
   }
 }

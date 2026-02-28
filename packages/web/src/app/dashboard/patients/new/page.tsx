@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -13,9 +13,10 @@ function getToken() {
 
 export default function NewPatientPage() {
   const router = useRouter();
-  const [name, setName] = useState('');
+  const searchParams = useSearchParams();
+  const [name, setName] = useState(searchParams.get('name') || '');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
-  const [mobile, setMobile] = useState('');
+  const [mobile, setMobile] = useState(searchParams.get('mobile') || '');
   const [email, setEmail] = useState('');
   const [ageYears, setAgeYears] = useState('');
   const [address, setAddress] = useState('');
@@ -74,7 +75,7 @@ export default function NewPatientPage() {
             id="name"
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e: any) => setName(e.target.value)}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             required
           />
@@ -84,7 +85,7 @@ export default function NewPatientPage() {
           <select
             id="gender"
             value={gender}
-            onChange={(e) => setGender(e.target.value as 'male' | 'female' | 'other')}
+            onChange={(e: any) => setGender(e.target.value as 'male' | 'female' | 'other')}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           >
             <option value="male">Male</option>
@@ -98,7 +99,7 @@ export default function NewPatientPage() {
             id="mobile"
             type="text"
             value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
+            onChange={(e: any) => setMobile(e.target.value)}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             required
           />
@@ -109,7 +110,7 @@ export default function NewPatientPage() {
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e: any) => setEmail(e.target.value)}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
         </div>
@@ -121,7 +122,7 @@ export default function NewPatientPage() {
             min={0}
             max={150}
             value={ageYears}
-            onChange={(e) => setAgeYears(e.target.value)}
+            onChange={(e: any) => setAgeYears(e.target.value)}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
         </div>
@@ -130,7 +131,7 @@ export default function NewPatientPage() {
           <textarea
             id="address"
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
+            onChange={(e: any) => setAddress(e.target.value)}
             rows={2}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           />

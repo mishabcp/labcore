@@ -65,11 +65,20 @@ export default function NewOrderPage() {
     if (preselectedPatientId) setPatientId(preselectedPatientId);
   }, [preselectedPatientId]);
 
-  function toggleTest(id: string) {
+  function toggleTest(t: any) {
     setSelectedTestIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(t.id)) {
+        next.delete(t.id);
+        if (t.isPanel && t.panelComponents) {
+          t.panelComponents.forEach((pc: any) => next.delete(pc.testDefinitionId));
+        }
+      } else {
+        next.add(t.id);
+        if (t.isPanel && t.panelComponents) {
+          t.panelComponents.forEach((pc: any) => next.add(pc.testDefinitionId));
+        }
+      }
       return next;
     });
   }
@@ -106,7 +115,17 @@ export default function NewOrderPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? 'Failed to create order');
-      router.push(`/dashboard/orders/${data.id}`);
+
+      // Trigger label print
+      if (data.samples && data.samples.length > 0) {
+        window.open(`/dashboard/orders/${data.id}/labels`, '_blank');
+      }
+
+      if (data.invoices && data.invoices.length > 0) {
+        router.push(`/dashboard/invoices/${data.invoices[0].id}/receipt`);
+      } else {
+        router.push(`/dashboard/orders/${data.id}`);
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed');
@@ -124,27 +143,57 @@ export default function NewOrderPage() {
       <form onSubmit={handleSubmit} className="max-w-2xl space-y-6 rounded-lg border border-gray-200 bg-white p-6">
         <div>
           <label className="block text-sm font-medium text-gray-700">Patient *</label>
-          <input
-            type="search"
-            placeholder="Search patient by name or mobile..."
-            value={patientSearch}
-            onChange={(e) => setPatientSearch(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-          <div className="mt-2 max-h-40 overflow-auto rounded border border-gray-200">
-            {patients.map((p) => (
+          {!patientId ? (
+            <>
+              <input
+                type="search"
+                placeholder="Search patient by name or mobile..."
+                autoFocus
+                value={patientSearch}
+                onChange={(e: any) => setPatientSearch(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+              <div className="mt-2 max-h-40 overflow-auto rounded border border-gray-200 shadow-sm bg-white">
+                {patients.map((p: any) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => { setPatientId(p.id); setPatientSearch(''); }}
+                    className="block w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-0 border-gray-100"
+                  >
+                    <div className="font-medium text-gray-900">{p.name} <span className="text-gray-500 font-normal text-xs ml-2">{p.mobile}</span></div>
+                    <div className="text-xs text-gray-500 mt-1">ID: {p.patientCode} • {[p.ageYears ? `${p.ageYears}y` : null, p.gender].filter(Boolean).join(' ')}</div>
+                  </button>
+                ))}
+                {patients.length === 0 && patientSearch && (
+                  <div className="p-4 text-sm text-gray-500 text-center">
+                    No patients found.
+                    <Link href={`/dashboard/patients/new?${/^[0-9]+$/.test(patientSearch) ? 'mobile' : 'name'}=${encodeURIComponent(patientSearch)}`} className="ml-1 text-blue-600 hover:underline">
+                      Add New Patient
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="mt-1 flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+              <div>
+                <p className="font-medium text-blue-900">
+                  {patients.find(p => p.id === patientId)?.name || 'Selected Patient'}
+                </p>
+                <p className="text-xs text-blue-700 mt-1 pl-1">
+                  {patients.find(p => p.id === patientId)?.patientCode || patientId}
+                </p>
+              </div>
               <button
-                key={p.id}
                 type="button"
-                onClick={() => setPatientId(p.id)}
-                className={`block w-full px-3 py-2 text-left text-sm ${patientId === p.id ? 'bg-blue-50 font-medium' : 'hover:bg-gray-50'}`}
+                onClick={() => { setPatientId(''); setPatientSearch(''); }}
+                className="text-blue-600 font-medium hover:underline text-xs bg-white px-2 py-1 rounded shadow-sm border border-blue-200"
               >
-                {p.name} — {p.patientCode} — {p.id === patientId ? '✓' : ''}
+                Change
               </button>
-            ))}
-            {patients.length === 0 && patientSearch && <p className="p-2 text-sm text-gray-500">No patients found.</p>}
-          </div>
-          {patientId && <p className="mt-1 text-xs text-gray-500">Selected patient ID: {patientId}</p>}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -152,7 +201,7 @@ export default function NewOrderPage() {
             <label className="block text-sm font-medium text-gray-700">Priority</label>
             <select
               value={priority}
-              onChange={(e) => setPriority(e.target.value as 'routine' | 'urgent' | 'stat')}
+              onChange={(e: any) => setPriority(e.target.value as 'routine' | 'urgent' | 'stat')}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             >
               <option value="routine">Routine</option>
@@ -164,7 +213,7 @@ export default function NewOrderPage() {
             <label className="block text-sm font-medium text-gray-700">Rate card (optional)</label>
             <select
               value={rateCardId}
-              onChange={(e) => setRateCardId(e.target.value)}
+              onChange={(e: any) => setRateCardId(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             >
               <option value="">Default (test price)</option>
@@ -186,7 +235,7 @@ export default function NewOrderPage() {
               min="0"
               placeholder="0"
               value={discountAmount}
-              onChange={(e) => setDiscountAmount(e.target.value)}
+              onChange={(e: any) => setDiscountAmount(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
@@ -199,7 +248,7 @@ export default function NewOrderPage() {
               max="100"
               placeholder="0"
               value={discountPct}
-              onChange={(e) => setDiscountPct(e.target.value)}
+              onChange={(e: any) => setDiscountPct(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
@@ -208,18 +257,33 @@ export default function NewOrderPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700">Tests *</label>
           <div className="mt-2 max-h-48 overflow-auto rounded border border-gray-200 p-2">
-            {tests.map((t) => (
-              <label key={t.id} className="flex cursor-pointer items-center gap-2 py-1">
-                <input
-                  type="checkbox"
-                  checked={selectedTestIds.has(t.id)}
-                  onChange={() => toggleTest(t.id)}
-                  className="rounded border-gray-300"
-                />
-                <span className="text-sm">{t.testName}</span>
-                <span className="text-xs text-gray-500">({t.testCode}) — ₹{t.price}</span>
-              </label>
-            ))}
+            {(() => {
+              const zeroPriceIds = new Set<string>();
+              tests.forEach((t: any) => {
+                if (selectedTestIds.has(t.id) && t.isPanel && t.panelComponents) {
+                  // If we don't have rateCards mapped here easily, we fallback to t.price
+                  // Rate cards apply dynamically, but for UI preview we just use base price
+                  if (t.price > 0) {
+                    t.panelComponents.forEach((pc: any) => zeroPriceIds.add(pc.testDefinitionId));
+                  }
+                }
+              });
+
+              return tests.map((t) => (
+                <label key={t.id} className="flex cursor-pointer items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedTestIds.has(t.id)}
+                    onChange={() => toggleTest(t)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm">{t.testName}</span>
+                  <span className="text-xs text-gray-500">
+                    ({t.testCode}) — {zeroPriceIds.has(t.id) && selectedTestIds.has(t.id) ? '₹0 (Included)' : `₹${t.price}`}
+                  </span>
+                </label>
+              ));
+            })()}
             {tests.length === 0 && <p className="text-sm text-gray-500">No tests in your lab. Run db:seed to add demo tests.</p>}
           </div>
         </div>
