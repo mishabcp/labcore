@@ -28,7 +28,18 @@
 2. Enter your **mobile number** and **password**.
 3. Click **Sign in**. You will be redirected to the Dashboard.
 
-> **First-time demo login**: Mobile `9876543210`, Password `demo123` (available if the database was seeded).
+### 1.1.1 Accessing the Demo Environment
+To explore the fully populated **Demo Lab**, you can log in using either the Email Address or the Mobile Number for any of the 5 distinct roles.
+
+All demo accounts share the password: `demo123`
+
+| Role Focus | Email Login | Mobile Login | What you will see on the Dashboard |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@demolab.com` | `9847100001` | Full access! Revenue charts, master settings, all menus. |
+| **Pathologist** | `pathologist@demolab.com` | `9847100002` | Results waiting to be "Authorised". |
+| **Senior Technician** | `srtech@demolab.com` | `9847100003` | Samples waiting for Results to be entered. |
+| **Technician / Phlebotomist** | `tech@demolab.com` | `9847100004` | Orders waiting for Samples to be collected. |
+| **Front Desk** | `frontdesk@demolab.com` | `9847100005` | Registration queue and patient lookup. |
 
 If you do not have an account, contact your lab admin. Lab owners can register a new lab by clicking **"register a lab"** on the login page.
 
