@@ -21,11 +21,11 @@ async function main() {
   // 2. Create the 5 Role Accounts
   const hash = await bcrypt.hash('demo123', 12);
   const demoUsers = [
-    { name: 'Dr. Jane Smith', email: 'admin@demolab.com', role: 'admin', mobile: '9999000001' },
-    { name: 'Dr. John Doe', email: 'pathologist@demolab.com', role: 'pathologist', mobile: '9999000002' },
-    { name: 'Sarah Senior', email: 'srtech@demolab.com', role: 'senior_tech', mobile: '9999000003' },
-    { name: 'Tyler Tech', email: 'tech@demolab.com', role: 'technician', mobile: '9999000004' },
-    { name: 'Fiona Front', email: 'frontdesk@demolab.com', role: 'front_desk', mobile: '9999000005' },
+    { name: 'Dr. Jane Smith', email: 'admin@demolab.com', role: 'admin', mobile: '9847100001' },
+    { name: 'Dr. John Doe', email: 'pathologist@demolab.com', role: 'pathologist', mobile: '9847100002' },
+    { name: 'Sarah Senior', email: 'srtech@demolab.com', role: 'senior_tech', mobile: '9847100003' },
+    { name: 'Tyler Tech', email: 'tech@demolab.com', role: 'technician', mobile: '9847100004' },
+    { name: 'Fiona Front', email: 'frontdesk@demolab.com', role: 'front_desk', mobile: '9847100005' },
   ] as const;
 
   const createdUsers = [];
@@ -187,7 +187,7 @@ async function main() {
         patientCode: `PT-${(i + 1).toString().padStart(4, '0')}`,
         name: `Demo Patient ${i + 1}`,
         gender: i % 2 === 0 ? 'male' : 'female',
-        mobile: `90000${(i + 1).toString().padStart(5, '0')}`,
+        mobile: `94472${(i + 1).toString().padStart(5, '0')}`,
         ageYears: 20 + (i % 50),
       },
     });
@@ -201,7 +201,7 @@ async function main() {
       data: {
         labId: lab.id,
         name: `Dr. Referrer ${i + 1}`,
-        mobile: `80000${(i + 1).toString().padStart(5, '0')}`,
+        mobile: `82813${(i + 1).toString().padStart(5, '0')}`,
       },
     });
     doctors.push(d);
@@ -393,13 +393,13 @@ async function main() {
 
   console.log(`✓ 50 Demo Orders generated across pipeline phases.`);
   console.log(`\nDemo Seeding Complete!`);
-  console.log(`\n================================`);
+  console.log(`================================`);
   console.log(`You can test the 5 UI flows by logging in with:`);
-  console.log(`admin@demolab.com       => PW: demo123`);
-  console.log(`pathologist@demolab.com => PW: demo123`);
-  console.log(`srtech@demolab.com      => PW: demo123`);
-  console.log(`tech@demolab.com        => PW: demo123`);
-  console.log(`frontdesk@demolab.com   => PW: demo123`);
+  console.log(`admin@demolab.com       (or 9847100001) => PW: demo123`);
+  console.log(`pathologist@demolab.com (or 9847100002) => PW: demo123`);
+  console.log(`srtech@demolab.com      (or 9847100003) => PW: demo123`);
+  console.log(`tech@demolab.com        (or 9847100004) => PW: demo123`);
+  console.log(`frontdesk@demolab.com   (or 9847100005) => PW: demo123`);
   console.log(`================================`);
 }
 

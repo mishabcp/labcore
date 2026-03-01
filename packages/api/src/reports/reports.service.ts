@@ -214,7 +214,7 @@ export class ReportsService {
     const patient = report.order.patient;
     const mobile = patient.mobile.replace(/\D/g, '');
     const pdfDownloadUrl = await this.getPdfDownloadUrl(labId, reportId, baseUrl);
-    const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify/${report.reportCode}`;
+    const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify/${report.reportCode}`;
     const message = `Your lab report is ready. View it securely here: ${verifyUrl}`;
     const whatsappLink = `https://wa.me/91${mobile}?text=${encodeURIComponent(message)}`;
     return {
