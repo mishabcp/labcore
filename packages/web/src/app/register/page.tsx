@@ -28,7 +28,7 @@ export default function RegisterLabPage() {
           labName,
           adminName,
           adminMobile,
-          adminEmail: adminEmail || undefined,
+          adminEmail,
           password,
         }),
       });
@@ -96,7 +96,7 @@ export default function RegisterLabPage() {
           </div>
           <div>
             <label htmlFor="adminEmail" className="block text-sm font-medium text-gray-700">
-              Email (optional)
+              Email
             </label>
             <input
               id="adminEmail"
@@ -104,6 +104,7 @@ export default function RegisterLabPage() {
               value={adminEmail}
               onChange={(e: any) => setAdminEmail(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              required
             />
           </div>
           <div>

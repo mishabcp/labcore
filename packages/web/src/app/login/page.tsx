@@ -7,7 +7,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mobile, setMobile] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,7 +20,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile, password }),
+        body: JSON.stringify(identifier.includes('@') ? { email: identifier, password } : { mobile: identifier, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? 'Login failed');
@@ -45,17 +45,17 @@ export default function LoginPage() {
         <p className="mt-1 text-sm text-gray-600">Sign in to your lab</p>
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="mobile" className="block text-sm font-medium text-gray-700">
-              Mobile number
+            <label htmlFor="identifier" className="block text-sm font-medium text-gray-700">
+              Email or Mobile Number
             </label>
             <input
-              id="mobile"
-              type="tel"
-              autoComplete="tel"
-              value={mobile}
-              onChange={(e: any) => setMobile(e.target.value)}
+              id="identifier"
+              type="text"
+              autoComplete="username"
+              value={identifier}
+              onChange={(e: any) => setIdentifier(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
-              placeholder="e.g. 9876543210"
+              placeholder="e.g. admin@demolab.com or 9876543210"
               required
               aria-required="true"
             />
