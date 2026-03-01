@@ -187,7 +187,7 @@ async function main() {
         patientCode: `PT-${(i + 1).toString().padStart(4, '0')}`,
         name: `Demo Patient ${i + 1}`,
         gender: i % 2 === 0 ? 'male' : 'female',
-        mobile: `94472${(i + 1).toString().padStart(5, '0')}`,
+        mobile: i < 3 ? '9497386759' : `94472${(i + 1).toString().padStart(5, '0')}`,
         ageYears: 20 + (i % 50),
       },
     });
