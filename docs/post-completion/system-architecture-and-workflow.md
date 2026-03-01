@@ -7,6 +7,7 @@ This document outlines the production infrastructure of the LabCore application,
 LabCore is deployed across three distinct cloud services, separating the frontend, backend, and database for maximum scalability and security.
 
 ```mermaid
+
 graph TD
     User([End User / Client Browser])
     
@@ -44,6 +45,7 @@ graph TD
 When a user clicks a button on the screen, a precise sequence of events happens connecting the user to the database.
 
 ```mermaid
+
 sequenceDiagram
     participant User as End User Browser
     participant UI as Vercel (Next.js)
@@ -97,6 +99,7 @@ LabCore employs a Role-Based Access Control (RBAC) system defined in the databas
 What actually happens day-to-day when a patient walks into the lab?
 
 ```mermaid
+
 graph LR
     A[1. Registration] --> B[2. Ordering]
     B --> C[3. Sample Collection]
