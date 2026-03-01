@@ -88,6 +88,9 @@ export default function LoginPage() {
           No account? Ask your lab admin or{' '}
           <a href="/register" className="text-blue-600 hover:underline">register a lab</a>.
         </p>
+        <p className="mt-4 text-center text-xs text-gray-400">
+          Need help? <a href="/user-manual.pdf" target="_blank" className="hover:underline">View User Manual</a>
+        </p>
       </div>
     </main>
   );
