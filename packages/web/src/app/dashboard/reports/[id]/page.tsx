@@ -28,8 +28,9 @@ export default function ReportViewerPage() {
                 const data = await api.get(`/reports/${id}`);
                 setReport(data);
 
-                const urlData = await api.get(`/reports/${id}/share-url`);
-                if (urlData?.url) setShareUrl(urlData.url);
+                // Dynamically build the URL using the browser's actual domain
+                const dynamicShareUrl = `${window.location.origin}/verify/${data.reportCode}`;
+                setShareUrl(dynamicShareUrl);
             } catch (e) {
                 console.error(e);
             } finally {
