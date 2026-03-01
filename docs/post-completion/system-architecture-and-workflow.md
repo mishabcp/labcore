@@ -27,10 +27,10 @@ graph TD
         Postgres[(PostgreSQL Database)]
     end
     
-    User -->|HTTPS / UI Interaction| NextJS
-    NextJS -->|REST API Calls (JSON)| NestJS
-    NestJS -->|SQL Queries (IPv4 Proxied)| Pooler
-    Pooler -->|IPv6 connection| Postgres
+    User -- "HTTPS / UI Interaction" --> NextJS
+    NextJS -- "REST API Calls (JSON)" --> NestJS
+    NestJS -- "SQL Queries (IPv4 Proxied)" --> Pooler
+    Pooler -- "IPv6 connection" --> Postgres
 ```
 
 ### Infrastructure Details
