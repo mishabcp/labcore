@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import {
+  dashboardPremium,
+  DashboardBackLink,
+  DashboardPageHeader,
+  DashboardPageScaffoldCompact,
+} from '@/components/dashboard-premium-shell';
+import { cn } from '@/lib/utils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -65,22 +72,22 @@ function BillingSection({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <h2 className="text-lg font-semibold text-gray-900">Billing</h2>
-      <p className="mt-1 text-sm text-gray-500">Invoice {invoice.invoiceCode}</p>
+    <div className={cn(dashboardPremium.panelClass, 'p-5 sm:p-6')}>
+      <h2 className="text-lg font-semibold text-zinc-950">Billing</h2>
+      <p className="mt-1 font-authMono text-sm text-zinc-500">Invoice {invoice.invoiceCode}</p>
       <dl className="mt-3 space-y-1 text-sm">
         <div className="flex justify-between">
-          <dt className="text-gray-500">Subtotal</dt>
+          <dt className="text-zinc-500">Subtotal</dt>
           <dd>₹{subtotal.toFixed(2)}</dd>
         </div>
         {discountTotal > 0 && (
           <div className="flex justify-between">
-            <dt className="text-gray-500">Discount</dt>
+            <dt className="text-zinc-500">Discount</dt>
             <dd>-₹{discountTotal.toFixed(2)}</dd>
           </div>
         )}
         <div className="flex justify-between">
-          <dt className="text-gray-500">GST</dt>
+          <dt className="text-zinc-500">GST</dt>
           <dd>₹{taxAmount.toFixed(2)}</dd>
         </div>
         <div className="flex justify-between font-medium">
@@ -88,29 +95,29 @@ function BillingSection({
           <dd>₹{grandTotal.toFixed(2)}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-gray-500">Paid</dt>
+          <dt className="text-zinc-500">Paid</dt>
           <dd>₹{amountPaid.toFixed(2)}</dd>
         </div>
         <div className="flex justify-between font-medium">
           <dt>Amount due</dt>
           <dd>₹{amountDue.toFixed(2)}</dd>
         </div>
-        <p className="pt-1 text-xs text-gray-500">Status: {invoice.status}</p>
+        <p className="pt-1 text-xs text-zinc-500">Status: {invoice.status}</p>
       </dl>
       <p className="mt-2">
         <Link
           href={`/dashboard/invoices/${invoice.id}/receipt`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-blue-600 hover:underline"
+          className={cn(dashboardPremium.inlineLink, 'text-sm')}
         >
           Print receipt
         </Link>
       </p>
       {amountDue > 0 && (
-        <form onSubmit={handleRecordPayment} className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+        <form onSubmit={handleRecordPayment} className="mt-4 space-y-3 border-t border-zinc-100 pt-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Amount (₹)</label>
+            <label className={dashboardPremium.formLabelClass}>Amount (₹)</label>
             <input
               type="number"
               step="0.01"
@@ -118,16 +125,16 @@ function BillingSection({
               max={amountDue}
               value={amount}
               onChange={(e: any) => setAmount(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className={cn(dashboardPremium.inputClass, 'mt-1')}
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Mode</label>
+            <label className={dashboardPremium.formLabelClass}>Mode</label>
             <select
               value={mode}
               onChange={(e: any) => setMode(e.target.value as (typeof PAYMENT_MODES)[number])}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className={cn(dashboardPremium.selectClass, 'mt-1')}
             >
               {PAYMENT_MODES.map((m) => (
                 <option key={m} value={m}>{m}</option>
@@ -135,18 +142,18 @@ function BillingSection({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Reference (optional)</label>
+            <label className={dashboardPremium.formLabelClass}>Reference (optional)</label>
             <input
               type="text"
               value={referenceNo}
               onChange={(e: any) => setReferenceNo(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className={cn(dashboardPremium.inputClass, 'mt-1')}
             />
           </div>
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            className={cn(dashboardPremium.primaryBtn, 'disabled:opacity-50')}
           >
             {submitting ? 'Recording…' : 'Record payment'}
           </button>
@@ -394,38 +401,50 @@ export default function OrderDetailPage() {
 
   if (!order) {
     return (
-      <div>
-        <Link href="/dashboard/orders" className="text-sm text-gray-600 hover:underline">← Orders</Link>
-        <p className="mt-4 text-gray-500">Loading or not found.</p>
-      </div>
+      <DashboardPageScaffoldCompact>
+        <DashboardBackLink href="/dashboard/orders">← Orders</DashboardBackLink>
+        <p className="mt-4 text-sm text-zinc-500">Loading or not found.</p>
+      </DashboardPageScaffoldCompact>
     );
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <Link href="/dashboard/orders" className="text-sm text-gray-600 hover:underline">← Orders</Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">Order {order.orderCode}</h1>
-        <p className="text-sm text-gray-500">
-          Patient: <Link href={`/dashboard/patients/${order.patient?.id}`} className="text-blue-600 hover:underline">{order.patient?.name}</Link>
-          {' · '}{order.status} · {order.priority}
-          {hasAnyCancelled && (
-            <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Some items cancelled</span>
-          )}
-        </p>
+    <DashboardPageScaffoldCompact>
+      <div className="flex flex-wrap items-center gap-3">
+        <DashboardBackLink href="/dashboard/orders">← Orders</DashboardBackLink>
       </div>
+      <DashboardPageHeader
+        eyebrow="Order"
+        title={order.orderCode}
+        subtitle={
+          <>
+            Patient:{' '}
+            <Link href={`/dashboard/patients/${order.patient?.id}`} className={dashboardPremium.inlineLink}>
+              {order.patient?.name}
+            </Link>
+            {' · '}
+            <span className="capitalize">{order.status}</span> · {order.priority}
+            {hasAnyCancelled ? (
+              <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 ring-1 ring-inset ring-amber-200/60">
+                Some items cancelled
+              </span>
+            ) : null}
+          </>
+        }
+        compact
+      />
       <div className="space-y-6">
         {order.invoices?.[0] && (
           <BillingSection invoice={order.invoices[0]} onPaymentRecorded={refetchOrder} />
         )}
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900">Report</h2>
-          <p className="mt-1 text-sm text-gray-500">Generate report when all results are authorised. Then download PDF or share via WhatsApp.</p>
+        <div className={cn(dashboardPremium.panelClass, 'p-5 sm:p-6')}>
+          <h2 className="text-lg font-semibold text-zinc-900">Report</h2>
+          <p className="mt-1 text-sm text-zinc-500">Generate report when all results are authorised. Then download PDF or share via WhatsApp.</p>
           <div className="mt-3 flex gap-2">
             <button
               type="button"
               onClick={handleGenerateReport}
-              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className={cn(dashboardPremium.primaryBtn, 'px-3 py-2')}
             >
               Generate report
             </button>
@@ -433,7 +452,7 @@ export default function OrderDetailPage() {
               <button
                 type="button"
                 onClick={handleGetShareUrl}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
               >
                 Share via WhatsApp
               </button>
@@ -443,7 +462,7 @@ export default function OrderDetailPage() {
                 href={shareInfo.pdfDownloadUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
               >
                 Download PDF
               </a>
@@ -453,14 +472,14 @@ export default function OrderDetailPage() {
                 <button
                   type="button"
                   onClick={() => handleCopyLink('pdf')}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                 >
                   {copyFeedback === 'pdf' ? 'Copied!' : 'Copy PDF link'}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleCopyLink('whatsapp')}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                 >
                   {copyFeedback === 'whatsapp' ? 'Copied!' : 'Copy WhatsApp link'}
                 </button>
@@ -468,17 +487,17 @@ export default function OrderDetailPage() {
             )}
           </div>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className={cn(dashboardPremium.panelClass, 'p-5 sm:p-6')}>
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Tests</h2>
+            <h2 className="text-lg font-semibold text-zinc-900">Tests</h2>
             <button
               onClick={() => setAddTestsModal(true)}
-              className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline"
+              className={cn(dashboardPremium.inlineLink, 'text-sm font-medium')}
             >
               + Add Tests
             </button>
           </div>
-          <ul className="mt-2 list-inside list-disc text-sm text-gray-600">
+          <ul className="mt-2 list-inside list-disc text-sm text-zinc-600">
             {order.orderItems?.map((item) => (
               <li key={item.id}>
                 {item.testDefinition?.testName} ({item.testDefinition?.testCode})
@@ -511,16 +530,16 @@ export default function OrderDetailPage() {
         {cancelModal && (
           <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50">
             <div className="rounded-lg bg-white p-6 shadow-lg">
-              <h3 className="font-semibold text-gray-900">
+              <h3 className="font-semibold text-zinc-900">
                 {cancelModal === 'order' ? 'Cancel entire order' : 'Cancel test'}
               </h3>
-              <p className="mt-1 text-sm text-gray-500">This cannot be undone. Provide a reason (required).</p>
+              <p className="mt-1 text-sm text-zinc-500">This cannot be undone. Provide a reason (required).</p>
               <textarea
                 value={cancelReason}
                 onChange={(e: any) => setCancelReason(e.target.value)}
                 placeholder="Reason for cancellation"
                 rows={3}
-                className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="mt-3 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
               />
               <div className="mt-4 flex gap-2">
                 <button
@@ -534,7 +553,7 @@ export default function OrderDetailPage() {
                 <button
                   type="button"
                   onClick={() => { setCancelModal(null); setCancelReason(''); }}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                 >
                   Back
                 </button>
@@ -546,48 +565,48 @@ export default function OrderDetailPage() {
         {addTestsModal && order && (
           <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50 p-4">
             <div className="rounded-lg bg-white p-6 shadow-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
-              <h3 className="font-semibold text-gray-900">Add Tests to Order</h3>
-              <p className="mt-1 text-sm text-gray-500 mb-4">Select the tests you want to add to this existing order.</p>
+              <h3 className="font-semibold text-zinc-900">Add Tests to Order</h3>
+              <p className="mt-1 text-sm text-zinc-500 mb-4">Select the tests you want to add to this existing order.</p>
 
               <input
                 type="text"
                 placeholder="Search tests..."
                 value={testSearch}
                 onChange={(e) => setTestSearch(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm mb-4"
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm mb-4"
               />
 
-              <div className="flex-1 overflow-y-auto min-h-0 border border-gray-200 rounded-md">
-                <ul className="divide-y divide-gray-200">
+              <div className="flex-1 overflow-y-auto min-h-0 border border-zinc-200 rounded-md">
+                <ul className="divide-y divide-zinc-200">
                   {availableTests
                     .filter(t => !order.orderItems.some((oi: any) => oi.testDefinitionId === t.id && !oi.cancelledAt))
                     .filter(t => t.testName.toLowerCase().includes(testSearch.toLowerCase()) || t.testCode.toLowerCase().includes(testSearch.toLowerCase()))
                     .map(test => (
-                      <li key={test.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
+                      <li key={test.id} className="flex items-center justify-between p-3 hover:bg-zinc-50">
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{test.testName}</p>
-                          <p className="text-xs text-gray-500">{test.testCode} • ₹{test.price != null ? Number(test.price).toFixed(2) : '0.00'}</p>
+                          <p className="font-medium text-zinc-900 text-sm">{test.testName}</p>
+                          <p className="text-xs text-zinc-500">{test.testCode} • ₹{test.price != null ? Number(test.price).toFixed(2) : '0.00'}</p>
                         </div>
                         <button
                           onClick={() => toggleNewTest(test)}
-                          className={`px-3 py-1 rounded text-xs font-medium border ${selectedNewTestIds.has(test.id) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                          className={`rounded border px-3 py-1 text-xs font-medium ${selectedNewTestIds.has(test.id) ? 'border-teal-200 bg-teal-50 text-teal-900' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'}`}
                         >
                           {selectedNewTestIds.has(test.id) ? 'Selected' : 'Select'}
                         </button>
                       </li>
                     ))}
                   {availableTests.length > 0 && availableTests.filter(t => t.testName.toLowerCase().includes(testSearch.toLowerCase()) || t.testCode.toLowerCase().includes(testSearch.toLowerCase())).length === 0 && (
-                    <li className="p-4 text-center text-sm text-gray-500">No tests match your search.</li>
+                    <li className="p-4 text-center text-sm text-zinc-500">No tests match your search.</li>
                   )}
                 </ul>
               </div>
 
-              <div className="mt-4 flex justify-end gap-2 shrink-0 border-t border-gray-100 pt-4">
+              <div className="mt-4 flex justify-end gap-2 shrink-0 border-t border-zinc-100 pt-4">
                 <button
                   type="button"
                   disabled={addingTests}
                   onClick={() => { setAddTestsModal(false); setSelectedNewTestIds(new Set()); setTestSearch(''); }}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                 >
                   Cancel
                 </button>
@@ -595,7 +614,7 @@ export default function OrderDetailPage() {
                   type="button"
                   disabled={addingTests || selectedNewTestIds.size === 0}
                   onClick={handleAddTests}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className={cn(dashboardPremium.primaryBtn, 'px-4 py-2 disabled:opacity-50')}
                 >
                   {addingTests ? 'Adding...' : `Add ${selectedNewTestIds.size} Tests`}
                 </button>
@@ -604,21 +623,21 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className={cn(dashboardPremium.panelClass, 'p-5 sm:p-6')}>
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Samples</h2>
+            <h2 className="text-lg font-semibold text-zinc-900">Samples</h2>
             {order.samples && order.samples.length > 0 && (
               <Link
                 href={`/dashboard/orders/${id}/labels`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1"
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 flex items-center gap-1"
               >
                 Print all labels
               </Link>
             )}
           </div>
-          <ul className="mt-2 list-inside list-disc text-sm text-gray-600">
+          <ul className="mt-2 list-inside list-disc text-sm text-zinc-600">
             {order.samples?.map((s) => (
               <li key={s.id}>
                 {s.sampleCode} — {s.status}
@@ -627,18 +646,20 @@ export default function OrderDetailPage() {
                   href={`/dashboard/samples/${s.id}/print`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
+                  className={dashboardPremium.inlineLink}
                 >
                   Print label
                 </Link>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-gray-500">
-            <Link href="/dashboard/samples" className="text-blue-600 hover:underline">View all samples</Link>
+          <p className="mt-2 text-xs text-zinc-500">
+            <Link href="/dashboard/samples" className={dashboardPremium.inlineLink}>
+              View all samples
+            </Link>
           </p>
         </div>
       </div>
-    </div>
+    </DashboardPageScaffoldCompact>
   );
 }

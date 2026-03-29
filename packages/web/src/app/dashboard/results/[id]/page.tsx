@@ -1,15 +1,99 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, AlertTriangle } from 'lucide-react';
+import {
+  dashboardPremium,
+  DashboardBackLink,
+  DashboardInfoCallout,
+  DashboardListSkeleton,
+  DashboardPageHeader,
+  DashboardPageScaffoldCompact,
+  dashboardTableHeadCell,
+} from '@/components/dashboard-premium-shell';
+import { cn } from '@/lib/utils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 function getToken() {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('accessToken');
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    pending: 'bg-zinc-100 text-zinc-800 ring-1 ring-zinc-200/80',
+    entered: 'bg-sky-50 text-sky-900 ring-1 ring-sky-200/70',
+    reviewed: 'bg-amber-50 text-amber-950 ring-1 ring-amber-200/70',
+    authorised: 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/70',
+  };
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize',
+        map[status] ?? 'bg-zinc-100 text-zinc-800 ring-1 ring-zinc-200/80',
+      )}
+    >
+      {status}
+    </span>
+  );
+}
+
+function RefRangeLine({ p }: { p: any }) {
+  if (!p.unit && !p.evaluatedRefRange) {
+    return <span className="text-zinc-400">—</span>;
+  }
+  return (
+    <span className="text-sm text-zinc-600">
+      {p.unit ? <span className="font-medium text-zinc-800">{p.unit}</span> : null}
+      {p.evaluatedRefRange ? (
+        <span className={cn(p.unit && 'ml-1.5')}>
+          ({p.evaluatedRefRange.min} – {p.evaluatedRefRange.max})
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function getNumericFlagLetter(p: any, value: string): 'C' | 'L' | 'H' | null {
+  if (!value || p.resultType !== 'numeric') return null;
+  const num = parseFloat(value);
+  if (isNaN(num)) return null;
+
+  if (
+    (p.criticalLow != null && num < parseFloat(p.criticalLow)) ||
+    (p.criticalHigh != null && num > parseFloat(p.criticalHigh))
+  ) {
+    return 'C';
+  }
+  if (p.evaluatedRefRange) {
+    const min = parseFloat(p.evaluatedRefRange.min);
+    const max = parseFloat(p.evaluatedRefRange.max);
+    if (!isNaN(min) && num < min) return 'L';
+    if (!isNaN(max) && num > max) return 'H';
+  }
+  return null;
+}
+
+function NumericFlag({ p, value }: { p: any; value: string }) {
+  const flag = getNumericFlagLetter(p, value);
+  if (!flag) return null;
+
+  const colorClass =
+    flag === 'C' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white';
+
+  return (
+    <span
+      className={cn(
+        'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+        colorClass,
+      )}
+      title={flag === 'C' ? 'Critical' : flag === 'L' ? 'Low' : 'High'}
+    >
+      {flag}
+    </span>
+  );
 }
 
 export default function ResultEntryPage() {
@@ -21,15 +105,26 @@ export default function ResultEntryPage() {
   const [message, setMessage] = useState('');
   const [interpretiveNotes, setInterpretiveNotes] = useState('');
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
 
-  // References map for tab-key navigation within inputs
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({});
 
   useEffect(() => {
+    if (!id) return;
     const token = getToken();
-    if (!token || !id) return;
+    if (!token) {
+      setLoadErrorMessage('Sign in to view this result.');
+      setLoadState('error');
+      return;
+    }
+    setLoadErrorMessage(null);
+    setLoadState('loading');
     fetch(`${API_URL}/results/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed');
+        return res.json();
+      })
       .then((data) => {
         setResult(data);
         if (data?.resultValues) {
@@ -48,6 +143,12 @@ export default function ResultEntryPage() {
         if (data?.interpretiveNotes) {
           setInterpretiveNotes(data.interpretiveNotes);
         }
+        setLoadState('ready');
+      })
+      .catch(() => {
+        setResult(null);
+        setLoadErrorMessage('Could not load this result.');
+        setLoadState('error');
       });
   }, [id]);
 
@@ -62,11 +163,11 @@ export default function ResultEntryPage() {
         const val = values[p.id];
         if (p.resultType === 'numeric') {
           return { testParameterId: p.id, numericValue: val ? parseFloat(val) : undefined };
-        } else if (p.resultType === 'qualitative') {
-          return { testParameterId: p.id, codedValue: val || undefined };
-        } else {
-          return { testParameterId: p.id, textValue: val || undefined };
         }
+        if (p.resultType === 'qualitative') {
+          return { testParameterId: p.id, codedValue: val || undefined };
+        }
+        return { testParameterId: p.id, textValue: val || undefined };
       });
 
       const res = await fetch(`${API_URL}/results/${id}/values`, {
@@ -80,7 +181,6 @@ export default function ResultEntryPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? 'Failed');
 
-      // Update local state with whatever backend returns
       setResult(data);
       if (data?.resultValues) {
         const v: Record<string, string> = {};
@@ -111,7 +211,7 @@ export default function ResultEntryPage() {
     setLoadingAction(newStatus);
     setMessage('');
     try {
-      const payload: any = { status: newStatus };
+      const payload: Record<string, unknown> = { status: newStatus };
       if (newStatus === 'authorised' && interpretiveNotes) {
         payload.interpretiveNotes = interpretiveNotes;
       }
@@ -136,229 +236,307 @@ export default function ResultEntryPage() {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent, index: number, total: number) => {
-    // Basic enter or down arrow navigation between rows (optional, tab works natively)
-    if (e.key === 'Enter' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      const nextIndex = (index + 1) % total;
-      const nextId = parameters[nextIndex]?.id;
-      if (nextId && inputRefs.current[nextId]) {
-        inputRefs.current[nextId]?.focus();
+  const parameters = result?.orderItem?.testDefinition?.parameters ?? [];
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, index: number, total: number) => {
+      if (e.key === 'Enter' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIndex = (index + 1) % total;
+        const nextId = parameters[nextIndex]?.id;
+        if (nextId && inputRefs.current[nextId]) {
+          inputRefs.current[nextId]?.focus();
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevIndex = (index - 1 + total) % total;
+        const prevId = parameters[prevIndex]?.id;
+        if (prevId && inputRefs.current[prevId]) {
+          inputRefs.current[prevId]?.focus();
+        }
       }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prevIndex = (index - 1 + total) % total;
-      const prevId = parameters[prevIndex]?.id;
-      if (prevId && inputRefs.current[prevId]) {
-        inputRefs.current[prevId]?.focus();
-      }
+    },
+    [parameters],
+  );
+
+  const renderParameterControl = (p: any, index: number, isReadOnly: boolean) => {
+    const isFormula = p.resultType === 'formula';
+    const isQualitative = p.resultType === 'qualitative';
+    const isText = p.resultType === 'text';
+    const showFlag = getNumericFlagLetter(p, values[p.id] ?? '') != null;
+
+    if (isFormula) {
+      return (
+        <input
+          ref={(el) => {
+            inputRefs.current[p.id] = el;
+          }}
+          type="text"
+          value={values[p.id] ?? ''}
+          readOnly
+          disabled
+          placeholder="Calculated automatically"
+          className={cn(dashboardPremium.inputClass, 'cursor-not-allowed bg-zinc-50 opacity-80')}
+        />
+      );
     }
+    if (isQualitative) {
+      return (
+        <select
+          ref={(el) => {
+            inputRefs.current[p.id] = el;
+          }}
+          value={values[p.id] ?? ''}
+          onChange={(e) => setValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
+          disabled={isReadOnly}
+          onKeyDown={(e) => handleKeyDown(e, index, parameters.length)}
+          className={cn(dashboardPremium.selectClass, isReadOnly && 'cursor-not-allowed bg-zinc-50')}
+        >
+          <option value="">Select option…</option>
+          {(p.codedValues || []).map((cv: string) => (
+            <option key={cv} value={cv}>
+              {cv}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (isText) {
+      return (
+        <textarea
+          ref={(el) => {
+            inputRefs.current[p.id] = el;
+          }}
+          value={values[p.id] ?? ''}
+          onChange={(e) => setValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
+          disabled={isReadOnly}
+          rows={2}
+          className={cn(dashboardPremium.textareaClass, 'min-h-[4.5rem]', isReadOnly && 'cursor-not-allowed bg-zinc-50')}
+          placeholder="Enter text…"
+        />
+      );
+    }
+    return (
+      <div className="relative flex w-full items-center gap-2">
+        <input
+          ref={(el) => {
+            inputRefs.current[p.id] = el;
+          }}
+          type="number"
+          step="any"
+          value={values[p.id] ?? ''}
+          onChange={(e) => setValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
+          onKeyDown={(e) => handleKeyDown(e, index, parameters.length)}
+          disabled={isReadOnly}
+          className={cn(dashboardPremium.inputClass, showFlag && 'pr-12', isReadOnly && 'cursor-not-allowed bg-zinc-50')}
+          placeholder="Enter number…"
+        />
+        {showFlag ? (
+          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+            <NumericFlag p={p} value={values[p.id] ?? ''} />
+          </div>
+        ) : null}
+      </div>
+    );
   };
 
-  if (!result) {
+  const renderHistory = (p: any) => {
+    const history = (result.previousResults || []).map((pr: any) => {
+      const rv = pr.resultValues?.find((v: any) => v.testParameterId === p.id);
+      return {
+        date: new Date(pr.authorisedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        val: rv ? (p.resultType === 'numeric' ? rv.numericValue : rv.codedValue || rv.textValue) : '—',
+      };
+    });
+
+    if (history.length === 0) {
+      return <span className="text-xs italic text-zinc-400">No history</span>;
+    }
     return (
-      <div>
-        <Link href="/dashboard/results" className="text-sm text-gray-600 hover:underline">← Results</Link>
-        <p className="mt-4 text-gray-500">Loading…</p>
+      <div className="flex flex-col gap-1.5 text-xs">
+        {history.map((h: { date: string; val: unknown }, i: number) => (
+          <div
+            key={i}
+            className="flex items-center justify-between gap-3 border-b border-zinc-100 pb-1.5 last:border-0 last:pb-0"
+          >
+            <span className="shrink-0 text-zinc-500">{h.date}</span>
+            <span className="min-w-0 truncate text-right font-medium text-zinc-800">
+              {h.val != null ? String(h.val) : '—'}
+            </span>
+          </div>
+        ))}
       </div>
+    );
+  };
+
+  if (loadState === 'loading' || loadState === 'idle') {
+    return (
+      <DashboardPageScaffoldCompact>
+        <DashboardBackLink href="/dashboard/results">← Results</DashboardBackLink>
+        <DashboardListSkeleton rows={4} />
+      </DashboardPageScaffoldCompact>
     );
   }
 
-  const parameters = result.orderItem?.testDefinition?.parameters ?? [];
+  if (loadState === 'error' || !result) {
+    return (
+      <DashboardPageScaffoldCompact>
+        <DashboardBackLink href="/dashboard/results">← Results</DashboardBackLink>
+        <p className="text-sm text-zinc-600">{loadErrorMessage ?? 'Could not load this result.'}</p>
+      </DashboardPageScaffoldCompact>
+    );
+  }
+
   const isReadOnly = result.status === 'authorised';
   const hasTextParameters = parameters.some((p: any) => p.resultType === 'text');
-
-  function renderFlag(p: any, value: string) {
-    if (!value || p.resultType !== 'numeric') return null;
-    const num = parseFloat(value);
-    if (isNaN(num)) return null;
-
-    let flag = null;
-    let colorClass = '';
-
-    // Check criticals first
-    if ((p.criticalLow != null && num < parseFloat(p.criticalLow)) ||
-      (p.criticalHigh != null && num > parseFloat(p.criticalHigh))) {
-      flag = 'C';
-      colorClass = 'bg-red-600 text-white';
-    } else if (p.evaluatedRefRange) {
-      const min = parseFloat(p.evaluatedRefRange.min);
-      const max = parseFloat(p.evaluatedRefRange.max);
-      if (!isNaN(min) && num < min) { flag = 'L'; colorClass = 'bg-orange-500 text-white'; }
-      if (!isNaN(max) && num > max) { flag = 'H'; colorClass = 'bg-orange-500 text-white'; }
-    }
-
-    if (!flag) return null;
-
-    return (
-      <span className={`inline-flex items-center justify-center font-bold text-[10px] w-5 h-5 rounded-full ml-2 ${colorClass}`} title={flag === 'C' ? 'Critical' : (flag === 'L' ? 'Low' : 'High')}>
-        {flag}
-      </span>
-    );
-  }
+  const testName = result.orderItem?.testDefinition?.testName ?? 'Result';
+  const patientName = result.orderItem?.order?.patient?.name ?? '—';
+  const orderCode = result.orderItem?.order?.orderCode;
 
   return (
-    <div>
-      <div className="mb-6">
-        <Link href="/dashboard/results" className="text-sm text-gray-600 hover:underline">← Results</Link>
-        <div className="flex justify-between items-end mt-2">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{result.orderItem?.testDefinition?.testName}</h1>
-            <p className="text-sm text-gray-500 mt-1">Patient: <span className="font-medium text-gray-900">{result.orderItem?.order?.patient?.name}</span> · Status: <span className="font-medium text-gray-900 capitalize">{result.status}</span></p>
-          </div>
-          {hasTextParameters && (
-            <Link
-              href={`/dashboard/results/${id}/narrative`}
-              className="rounded-md bg-white border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-            >
-              Open Narrative Editor
+    <DashboardPageScaffoldCompact>
+      <div className="flex flex-wrap items-center gap-3">
+        <DashboardBackLink href="/dashboard/results">← Results</DashboardBackLink>
+      </div>
+
+      <DashboardPageHeader
+        eyebrow={orderCode ? `Order ${orderCode}` : 'Result entry'}
+        title={testName}
+        compact
+        subtitle={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>
+              Patient: <span className="font-medium text-zinc-900">{patientName}</span>
+            </span>
+            <span className="hidden sm:inline text-zinc-300" aria-hidden>
+              ·
+            </span>
+            <StatusBadge status={result.status} />
+          </span>
+        }
+        action={
+          hasTextParameters ? (
+            <Link href={`/dashboard/results/${id}/narrative`} className={dashboardPremium.ghostBtn}>
+              Narrative editor
             </Link>
+          ) : null
+        }
+      />
+
+      {isReadOnly ? (
+        <DashboardInfoCallout>
+          This result is authorised and read-only. To change values, use amend flow from the report if your lab allows
+          it.
+        </DashboardInfoCallout>
+      ) : null}
+
+      <div className={cn(dashboardPremium.panelClass, 'overflow-hidden')}>
+        {/* Mobile / tablet: stacked cards */}
+        <div className="divide-y divide-zinc-100 lg:hidden">
+          {parameters.length === 0 ? (
+            <p className="p-5 text-sm text-zinc-500">No parameters for this test.</p>
+          ) : (
+            parameters.map((p: any, index: number) => (
+              <div key={p.id} className="space-y-4 p-4 sm:p-5">
+                <h2 className="text-sm font-semibold leading-snug text-zinc-900">{p.paramName}</h2>
+                <div className="space-y-1.5">
+                  <p className={dashboardPremium.labelClass}>Result value</p>
+                  {renderParameterControl(p, index, isReadOnly)}
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <p className={dashboardPremium.labelClass}>Reference / unit</p>
+                    <RefRangeLine p={p} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className={dashboardPremium.labelClass}>History (last 3)</p>
+                    {renderHistory(p)}
+                  </div>
+                </div>
+              </div>
+            ))
           )}
         </div>
-      </div>
-      <div className="w-full max-w-4xl space-y-4 rounded-lg bg-white shadow-sm border border-gray-200">
 
-        <table className="min-w-full divide-y divide-gray-200 table-fixed">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-              <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result Value</th>
-              <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference Range / Unit</th>
-              <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">History (Last 3)</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {parameters.map((p: any, index: number) => {
-              const isFormula = p.resultType === 'formula';
-              const isQualitative = p.resultType === 'qualitative';
-              const isText = p.resultType === 'text';
-
-              // Find history for this parameter
-              const history = (result.previousResults || []).map((pr: any) => {
-                const rv = pr.resultValues?.find((v: any) => v.testParameterId === p.id);
-                return {
-                  date: new Date(pr.authorisedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-                  val: rv ? (p.resultType === 'numeric' ? rv.numericValue : (rv.codedValue || rv.textValue)) : '—'
-                };
-              });
-
-              return (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-100">
-                    {p.paramName}
-                  </td>
-                  <td className="px-6 py-3 border-r border-gray-100 align-middle">
-                    <div className="flex items-center">
-                      {isFormula ? (
-                        <div className="w-full relative">
-                          <input
-                            ref={el => { inputRefs.current[p.id] = el; }}
-                            type="text"
-                            value={values[p.id] ?? ''}
-                            readOnly
-                            disabled
-                            placeholder="Calculated automatically"
-                            className="block w-full rounded-md border-gray-300 bg-gray-50 px-3 py-2 text-sm shadow-sm opacity-70"
-                          />
-                        </div>
-                      ) : isQualitative ? (
-                        <select
-                          ref={el => { inputRefs.current[p.id] = el; }}
-                          value={values[p.id] ?? ''}
-                          onChange={(e: any) => setValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                          disabled={isReadOnly}
-                          onKeyDown={(e) => handleKeyDown(e, index, parameters.length)}
-                          className="block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50"
-                        >
-                          <option value="">Select option...</option>
-                          {(p.codedValues || []).map((cv: string) => (
-                            <option key={cv} value={cv}>{cv}</option>
-                          ))}
-                        </select>
-                      ) : isText ? (
-                        <textarea
-                          ref={el => { inputRefs.current[p.id] = el; }}
-                          value={values[p.id] ?? ''}
-                          onChange={(e: any) => setValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                          disabled={isReadOnly}
-                          rows={2}
-                          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50"
-                          placeholder="Enter text..."
-                        />
-                      ) : (
-                        <div className="flex items-center w-full relative">
-                          <input
-                            ref={el => { inputRefs.current[p.id] = el; }}
-                            type="number"
-                            step="any"
-                            value={values[p.id] ?? ''}
-                            onChange={(e: any) => setValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                            onKeyDown={(e) => handleKeyDown(e, index, parameters.length)}
-                            disabled={isReadOnly}
-                            className={`block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 ${renderFlag(p, values[p.id]) ? 'pr-10' : ''}`}
-                            placeholder="Enter number..."
-                          />
-                          <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                            {renderFlag(p, values[p.id])}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {p.unit && <span className="font-medium inline-block min-w-10">{p.unit}</span>}
-                    {p.evaluatedRefRange && (
-                      <span className="text-gray-400 ml-2">
-                        ({p.evaluatedRefRange.min} - {p.evaluatedRefRange.max})
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {history.length > 0 ? (
-                      <div className="flex flex-col gap-1 text-[11px]">
-                        {history.map((h: any, i: number) => (
-                          <div key={i} className="flex justify-between border-b border-gray-50 pb-1 last:border-0">
-                            <span className="text-gray-400">{h.date}</span>
-                            <span className="font-medium text-gray-700">{h.val != null ? String(h.val).substring(0, 15) : '—'}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-gray-300 italic text-xs">No history</span>
-                    )}
-                  </td>
+        {/* Desktop: table */}
+        <div className="hidden lg:block">
+          <div className="overflow-x-auto">
+            <table className="min-w-[720px] w-full table-fixed divide-y divide-zinc-100">
+              <thead className="bg-zinc-50/90">
+                <tr>
+                  <th className={dashboardTableHeadCell('w-[22%]')}>Parameter</th>
+                  <th className={dashboardTableHeadCell('w-[28%]')}>Result value</th>
+                  <th className={dashboardTableHeadCell('w-[22%]')}>Reference / unit</th>
+                  <th className={dashboardTableHeadCell('w-[28%]')}>History (last 3)</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 bg-white">
+                {parameters.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-8 text-center text-sm text-zinc-500">
+                      No parameters for this test.
+                    </td>
+                  </tr>
+                ) : (
+                  parameters.map((p: any, index: number) => (
+                    <tr key={p.id} className={dashboardPremium.tableRowHover}>
+                      <td className="border-r border-zinc-100 px-5 py-4 align-top text-sm font-medium text-zinc-900">
+                        {p.paramName}
+                      </td>
+                      <td className="border-r border-zinc-100 px-5 py-3 align-top">
+                        {renderParameterControl(p, index, isReadOnly)}
+                      </td>
+                      <td className="px-5 py-4 align-top">
+                        <RefRangeLine p={p} />
+                      </td>
+                      <td className="px-5 py-4 align-top">{renderHistory(p)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-        <div className="border-t border-gray-200 p-6 bg-white">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Interpretive Notes</label>
+        <div className="border-t border-zinc-100 bg-white p-4 sm:p-6">
+          <label htmlFor="interpretive-notes" className={cn(dashboardPremium.formLabelClass)}>
+            Interpretive notes
+          </label>
           <textarea
+            id="interpretive-notes"
             value={interpretiveNotes}
-            onChange={e => setInterpretiveNotes(e.target.value)}
+            onChange={(e) => setInterpretiveNotes(e.target.value)}
             disabled={isReadOnly}
             rows={3}
-            placeholder="Add optional notes for the report..."
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm disabled:bg-gray-50"
+            placeholder="Optional notes for the report…"
+            className={cn(dashboardPremium.textareaClass, isReadOnly && 'cursor-not-allowed bg-zinc-50')}
           />
         </div>
 
-        <div className="p-6 bg-gray-50 border-t border-gray-200 rounded-b-lg flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="text-sm">
-            {message && <span className={message.includes('successfully') || message.includes('updated') ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>{message}</span>}
+        <div className="flex flex-col gap-4 border-t border-zinc-100 bg-zinc-50/80 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="min-h-[1.25rem] text-sm">
+            {message ? (
+              <span
+                className={
+                  message.includes('successfully') || message.includes('updated')
+                    ? 'font-medium text-emerald-700'
+                    : 'font-medium text-rose-700'
+                }
+              >
+                {message}
+              </span>
+            ) : null}
           </div>
 
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
             {(result.status === 'pending' || result.status === 'entered' || result.status === 'reviewed') && (
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving || loadingAction !== null}
-                className="rounded-md bg-white border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                className={cn(dashboardPremium.ghostBtn, 'w-full sm:w-auto')}
               >
-                {saving ? 'Saving…' : 'Save Values'}
+                {saving ? 'Saving…' : 'Save values'}
               </button>
             )}
 
@@ -367,9 +545,11 @@ export default function ResultEntryPage() {
                 type="button"
                 onClick={() => handleUpdateStatus('reviewed')}
                 disabled={saving || loadingAction !== null}
-                className="rounded-md bg-blue-100 px-4 py-2 text-sm font-medium text-blue-800 shadow-sm hover:bg-blue-200 disabled:opacity-50"
+                className={cn(
+                  'w-full rounded-xl border border-teal-200/90 bg-teal-50/90 px-4 py-2.5 text-sm font-semibold text-teal-900 shadow-sm transition-colors hover:bg-teal-100/90 disabled:pointer-events-none disabled:opacity-45 sm:w-auto',
+                )}
               >
-                {loadingAction === 'reviewed' ? 'Reviewing...' : 'Mark as Reviewed'}
+                {loadingAction === 'reviewed' ? 'Reviewing…' : 'Mark as reviewed'}
               </button>
             )}
 
@@ -378,14 +558,14 @@ export default function ResultEntryPage() {
                 type="button"
                 onClick={() => handleUpdateStatus('authorised')}
                 disabled={saving || loadingAction !== null}
-                className="rounded-md bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                className={cn(dashboardPremium.primaryBtn, 'w-full sm:w-auto')}
               >
-                {loadingAction === 'authorised' ? 'Authorising...' : 'Authorise Result'}
+                {loadingAction === 'authorised' ? 'Authorising…' : 'Authorise result'}
               </button>
             )}
           </div>
         </div>
       </div>
-    </div>
+    </DashboardPageScaffoldCompact>
   );
 }

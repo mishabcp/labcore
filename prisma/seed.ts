@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+/// <reference types="node" />
+import { PrismaClient, type TestDefinition } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -70,17 +71,24 @@ async function main() {
 
   // 4. Create Tests and Map to Rate Card
   const dept = (v: string) => v as 'haematology' | 'biochemistry' | 'urine' | 'other';
-  const sample = (v: string) => v as 'blood_edta' | 'blood_plain' | 'urine';
+  const sample = (v: string) =>
+    v as 'blood_edta' | 'blood_plain' | 'blood_citrate' | 'urine';
 
   const tests = [
     { code: 'HB', name: 'Haemoglobin', department: dept('haematology'), sampleType: sample('blood_edta'), price: 150 },
+    { code: 'WBC', name: 'Total WBC Count', department: dept('haematology'), sampleType: sample('blood_edta'), price: 110 },
+    { code: 'PLT', name: 'Platelet Count', department: dept('haematology'), sampleType: sample('blood_edta'), price: 95 },
+    { code: 'ESR', name: 'ESR', department: dept('haematology'), sampleType: sample('blood_citrate'), price: 85 },
     { code: 'GLU', name: 'Blood Glucose (Fasting)', department: dept('biochemistry'), sampleType: sample('blood_plain'), price: 80 },
     { code: 'CREAT', name: 'Serum Creatinine', department: dept('biochemistry'), sampleType: sample('blood_plain'), price: 120 },
     { code: 'CHOL', name: 'Total Cholesterol', department: dept('biochemistry'), sampleType: sample('blood_plain'), price: 150 },
+    { code: 'SGPT', name: 'SGPT (ALT)', department: dept('biochemistry'), sampleType: sample('blood_plain'), price: 200 },
+    { code: 'TSH', name: 'Thyroid Stimulating Hormone (TSH)', department: dept('biochemistry'), sampleType: sample('blood_plain'), price: 380 },
+    { code: 'HBA1C', name: 'Glycated Haemoglobin (HbA1c)', department: dept('biochemistry'), sampleType: sample('blood_edta'), price: 520 },
     { code: 'URINE-R', name: 'Urine Routine', department: dept('urine'), sampleType: sample('urine'), price: 100 },
   ];
 
-  const createdTestDefs = [];
+  const createdTestDefs: TestDefinition[] = [];
   for (let i = 0; i < tests.length; i++) {
     const t = tests[i];
 
@@ -96,7 +104,14 @@ async function main() {
           testName: t.name,
           department: t.department,
           sampleType: t.sampleType,
-          tubeColour: t.sampleType === 'blood_edta' ? 'purple' : t.sampleType === 'blood_plain' ? 'red' : null,
+          tubeColour:
+            t.sampleType === 'blood_edta'
+              ? 'purple'
+              : t.sampleType === 'blood_plain'
+                ? 'red'
+                : t.sampleType === 'blood_citrate'
+                  ? 'blue'
+                  : null,
           isPanel: false,
           price: t.price,
           sortOrder: i + 1,
@@ -112,6 +127,16 @@ async function main() {
         refRanges.male = { adult: { low: 13, high: 17 } };
         refRanges.female = { adult: { low: 12, high: 15.5 } };
         unit = 'g/dL';
+      } else if (t.code === 'WBC') {
+        refRanges.adult = { low: 4, high: 11 };
+        unit = '10³/µL';
+      } else if (t.code === 'PLT') {
+        refRanges.adult = { low: 150, high: 450 };
+        unit = '10³/µL';
+      } else if (t.code === 'ESR') {
+        refRanges.male = { adult: { low: 0, high: 15 } };
+        refRanges.female = { adult: { low: 0, high: 20 } };
+        unit = 'mm/hr';
       } else if (t.code === 'GLU') {
         refRanges.adult = { low: 70, high: 100 };
         unit = 'mg/dL';
@@ -122,6 +147,16 @@ async function main() {
       } else if (t.code === 'CHOL') {
         refRanges.adult = { low: 0, high: 200 };
         unit = 'mg/dL';
+      } else if (t.code === 'SGPT') {
+        refRanges.male = { adult: { low: 7, high: 56 } };
+        refRanges.female = { adult: { low: 7, high: 45 } };
+        unit = 'U/L';
+      } else if (t.code === 'TSH') {
+        refRanges.adult = { low: 0.4, high: 4.0 };
+        unit = 'mIU/L';
+      } else if (t.code === 'HBA1C') {
+        refRanges.adult = { low: 4.0, high: 5.6 };
+        unit = '%';
       }
 
       await prisma.testParameter.create({
@@ -161,6 +196,25 @@ async function main() {
   }
   console.log(`✓ Ensured ${tests.length} tests and standard prices.`);
 
+  const T = (code: string) => {
+    const d = createdTestDefs.find((x) => x.testCode === code);
+    if (!d) throw new Error(`Missing test definition: ${code}`);
+    return d;
+  };
+
+  const testCombos = [
+    [T('HB')],
+    [T('GLU'), T('CREAT')],
+    [T('CHOL'), T('URINE-R')],
+    [T('HB'), T('GLU'), T('CHOL')],
+    [T('WBC'), T('PLT'), T('HB')],
+    [T('TSH'), T('HBA1C')],
+    [T('SGPT'), T('CREAT'), T('CHOL')],
+    [T('ESR')],
+    [T('HBA1C'), T('GLU')],
+    [T('WBC'), T('GLU')],
+  ];
+
   // 5. Check if pipeline orders are already generated to avoid duplication
   const existingOrdersCount = await prisma.order.count({ where: { labId: lab.id } });
 
@@ -171,12 +225,12 @@ async function main() {
     return;
   }
 
-  console.log('\nGenerating 50 realistic Pipeline Orders...');
+  // 6. Generate Realistic Data (scaled for richer local/staging demos)
+  const N_PATIENTS = 180;
+  const N_DOCTORS = 68;
+  const N_ORDERS = 225;
 
-  // 6. Generate Realistic Data
-  const N_PATIENTS = 50;
-  const N_DOCTORS = 20;
-  const N_ORDERS = 50;
+  console.log(`\nGenerating ${N_ORDERS} realistic pipeline orders (${N_PATIENTS} patients, ${N_DOCTORS} referring doctors)...`);
 
   // Generate Patients
   const patients = [];
@@ -184,7 +238,7 @@ async function main() {
     const p = await prisma.patient.create({
       data: {
         labId: lab.id,
-        patientCode: `PT-${(i + 1).toString().padStart(4, '0')}`,
+        patientCode: `PT-${(i + 1).toString().padStart(5, '0')}`,
         name: `Demo Patient ${i + 1}`,
         gender: i % 2 === 0 ? 'male' : 'female',
         mobile: i < 3 ? '9497386759' : `94472${(i + 1).toString().padStart(5, '0')}`,
@@ -207,15 +261,13 @@ async function main() {
     doctors.push(d);
   }
 
-  // 7. Distribute Orders across the 4 statuses
-  // 10 registered, 10 sample_collected, 10 in_process, 20 reported
-
-  const testCombos = [
-    [createdTestDefs[0]], // HB
-    [createdTestDefs[1], createdTestDefs[2]], // GLU + CREAT
-    [createdTestDefs[3], createdTestDefs[4]], // CHOL + URINE
-    [createdTestDefs[0], createdTestDefs[1], createdTestDefs[3]], // Full Profile
-  ];
+  // 7. Distribute orders across pipeline statuses (~40% / 20% / 20% / 20%)
+  const nReported = Math.floor(N_ORDERS * 0.4);
+  const nInProcess = Math.floor(N_ORDERS * 0.2);
+  const nSampleCollected = Math.floor(N_ORDERS * 0.2);
+  const endReported = nReported;
+  const endInProcess = nReported + nInProcess;
+  const endSampleCollected = nReported + nInProcess + nSampleCollected;
 
   const now = new Date();
   let invoiceCounter = 1;
@@ -229,15 +281,15 @@ async function main() {
     const hoursAgo = N_ORDERS - i;
     const createdAt = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
 
-    if (i < 20) {
+    if (i < endReported) {
       status = 'reported';
       sampleStatus = 'completed';
       resultStatus = 'authorised';
-    } else if (i < 30) {
+    } else if (i < endInProcess) {
       status = 'in_process';
       sampleStatus = 'in_process';
       resultStatus = 'entered';
-    } else if (i < 40) {
+    } else if (i < endSampleCollected) {
       status = 'sample_collected';
       sampleStatus = 'received';
       resultStatus = 'pending';
@@ -391,7 +443,7 @@ async function main() {
     }
   }
 
-  console.log(`✓ 50 Demo Orders generated across pipeline phases.`);
+  console.log(`✓ ${N_ORDERS} demo orders generated across pipeline phases.`);
   console.log(`\nDemo Seeding Complete!`);
   console.log(`================================`);
   console.log(`You can test the 5 UI flows by logging in with:`);

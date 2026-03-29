@@ -1,129 +1,210 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { BarChart, IndianRupee, Activity, Calendar } from 'lucide-react';
+import { Activity, BarChart, Calendar, IndianRupee } from 'lucide-react';
+import {
+  dashboardPremium,
+  DashboardListSkeleton,
+  DashboardPageHeader,
+  DashboardPageScaffold,
+  DashboardToolbarPanel,
+  dashboardTableHeadCell,
+} from '@/components/dashboard-premium-shell';
+import { cn } from '@/lib/utils';
 
 interface TrendRecord {
-    date: string;
-    orders: number;
-    revenue: number;
+  date: string;
+  orders: number;
+  revenue: number;
 }
 
 export default function TrendsAnalyticsPage() {
-    const [data, setData] = useState<TrendRecord[]>([]);
-    const [loading, setLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const scopeAll = searchParams.get('scope') === 'all';
+  const [data, setData] = useState<TrendRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        api.get('/dashboard/trends')
-            .then(setData)
-            .finally(() => setLoading(false));
-    }, []);
+  useEffect(() => {
+    setLoading(true);
+    const path = scopeAll ? '/dashboard/trends?scope=all' : '/dashboard/trends';
+    api
+      .get(path)
+      .then((d) => setData(Array.isArray(d) ? d : []))
+      .finally(() => setLoading(false));
+  }, [scopeAll]);
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Loading historical trends...</div>;
+  const maxOrders = Math.max(...data.map((d) => d.orders), 1);
+  const maxRevenue = Math.max(...data.map((d) => d.revenue), 1);
 
-    // Find max for scaling CSS bars
-    const maxOrders = Math.max(...data.map(d => d.orders), 1);
-    const maxRevenue = Math.max(...data.map(d => d.revenue), 1);
+  const formatCurrency = (n: number) => {
+    if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+    if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
+    return `₹${n.toFixed(0)}`;
+  };
 
-    const formatCurrency = (n: number) => {
-        if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-        if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-        return `₹${n.toFixed(0)}`;
-    };
+  const scopeLinks = (
+    <div className="flex flex-wrap gap-2">
+      <Link
+        href="/dashboard/analytics/trends"
+        className={cn(
+          dashboardPremium.ghostBtn,
+          !scopeAll && 'border-teal-300 bg-teal-50 text-teal-950 shadow-sm ring-2 ring-teal-400/25',
+        )}
+      >
+        Last 30 days
+      </Link>
+      <Link
+        href="/dashboard/analytics/trends?scope=all"
+        className={cn(
+          dashboardPremium.ghostBtn,
+          scopeAll && 'border-teal-300 bg-teal-50 text-teal-950 shadow-sm ring-2 ring-teal-400/25',
+        )}
+      >
+        All time
+      </Link>
+    </div>
+  );
 
-    return (
-        <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex justify-between items-center bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <BarChart className="w-6 h-6 text-blue-600" />
-                        Historical Trends (Last 30 Days)
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-1">Review operational volume and revenue patterns over the last month.</p>
+  return (
+    <DashboardPageScaffold>
+      <DashboardPageHeader
+        eyebrow="Analytics"
+        title={scopeAll ? 'Historical trends (all time)' : 'Historical trends (last 30 days)'}
+        subtitle={
+          scopeAll
+            ? 'Every calendar day that had an order registered or a payment received.'
+            : 'Review operational volume and revenue patterns over the last month.'
+        }
+        action={<BarChart className="h-8 w-8 text-teal-700" strokeWidth={1.5} aria-hidden />}
+      />
+
+      <DashboardToolbarPanel>{scopeLinks}</DashboardToolbarPanel>
+
+      {loading ? (
+        <DashboardListSkeleton rows={6} />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className={cn(dashboardPremium.panelClass, 'p-5 sm:p-6')}>
+              <h2 className="mb-6 flex items-center gap-2 text-base font-semibold text-zinc-950">
+                <Activity className="h-5 w-5 text-violet-600" strokeWidth={1.75} aria-hidden /> Daily order volume
+              </h2>
+              <div className="overflow-x-auto pb-2">
+                <div
+                  className="relative mb-2 ml-8 flex h-64 items-end gap-1 border-b border-l border-zinc-200 pb-2 sm:gap-2"
+                  style={{ width: `${Math.max(data.length * 6, 320)}px`, minWidth: '100%' }}
+                >
+                  {data.map((d, i) => {
+                    const heightPct = (d.orders / maxOrders) * 100;
+                    const isLast = i === data.length - 1;
+                    return (
+                      <div key={d.date} className="group relative flex h-full min-w-0 flex-1 items-end justify-center">
+                        <div
+                          className={cn(
+                            'w-full rounded-t-sm transition-all duration-300',
+                            isLast ? 'bg-violet-600' : 'bg-violet-300 group-hover:bg-violet-500',
+                          )}
+                          style={{ height: `${heightPct}%`, minHeight: '1px' }}
+                        />
+                        <div className="absolute -top-8 z-10 hidden whitespace-nowrap rounded bg-zinc-900 px-2 py-1 text-xs text-white group-hover:block">
+                          {d.orders} orders
+                          <br />
+                          {new Date(d.date).toLocaleDateString()}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+              </div>
+              <div className="mt-2 flex items-center justify-center gap-2 text-center text-xs text-zinc-400">
+                <Calendar className="h-3 w-3" aria-hidden />
+                {data.length > 0
+                  ? `${new Date(data[0].date).toLocaleDateString()} — ${new Date(data[data.length - 1].date).toLocaleDateString()}`
+                  : 'N/A'}
+                {scopeAll && data.length > 0 ? ` · ${data.length} day(s)` : ''}
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Orders Trend */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-                        <Activity className="w-5 h-5 text-indigo-500" /> Daily Order Volume
-                    </h2>
-                    <div className="relative h-64 border-l border-b border-gray-200 flex items-end ml-8 mb-6 pb-2 gap-1 sm:gap-2">
-                        {data.map((d, i) => {
-                            const heightPct = (d.orders / maxOrders) * 100;
-                            const isToday = i === data.length - 1;
-                            return (
-                                <div key={d.date} className="relative flex-1 group h-full flex items-end justify-center">
-                                    <div
-                                        className={`w-full rounded-t-sm transition-all duration-300 ${isToday ? 'bg-indigo-600' : 'bg-indigo-300 group-hover:bg-indigo-500'}`}
-                                        style={{ height: `${heightPct}%`, minHeight: '1px' }}
-                                    />
-                                    <div className="absolute -top-8 bg-gray-900 text-white text-xs px-2 py-1 rounded hidden group-hover:block z-10 whitespace-nowrap">
-                                        {d.orders} orders<br />{new Date(d.date).toLocaleDateString()}
-                                    </div>
-                                </div>
-                            );
+            <div className={cn(dashboardPremium.panelClass, 'p-5 sm:p-6')}>
+              <h2 className="mb-6 flex items-center gap-2 text-base font-semibold text-zinc-950">
+                <IndianRupee className="h-5 w-5 text-teal-600" strokeWidth={1.75} aria-hidden /> Daily collection
+              </h2>
+              <div className="overflow-x-auto pb-2">
+                <div
+                  className="relative mb-2 ml-10 flex h-64 items-end gap-1 border-b border-l border-zinc-200 pb-2 sm:gap-2"
+                  style={{ width: `${Math.max(data.length * 6, 320)}px`, minWidth: '100%' }}
+                >
+                  {data.map((d, i) => {
+                    const heightPct = (d.revenue / maxRevenue) * 100;
+                    const isLast = i === data.length - 1;
+                    return (
+                      <div key={d.date} className="group relative flex h-full min-w-0 flex-1 items-end justify-center">
+                        <div
+                          className={cn(
+                            'w-full rounded-t-sm transition-all duration-300',
+                            isLast ? 'bg-teal-600' : 'bg-teal-400 group-hover:bg-teal-500',
+                          )}
+                          style={{ height: `${heightPct}%`, minHeight: '1px' }}
+                        />
+                        <div className="absolute -top-8 z-10 hidden whitespace-nowrap rounded bg-zinc-900 px-2 py-1 text-xs text-white group-hover:block">
+                          ₹{d.revenue.toLocaleString()}
+                          <br />
+                          {new Date(d.date).toLocaleDateString()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="absolute bottom-0 left-[-2.5rem] text-xs text-zinc-400">0</div>
+                  <div className="absolute left-[-2.5rem] top-0 text-xs text-zinc-400">{formatCurrency(maxRevenue)}</div>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center justify-center gap-2 text-center text-xs text-zinc-400">
+                <Calendar className="h-3 w-3" aria-hidden />
+                {data.length > 0
+                  ? `${new Date(data[0].date).toLocaleDateString()} — ${new Date(data[data.length - 1].date).toLocaleDateString()}`
+                  : 'N/A'}
+              </div>
+            </div>
+          </div>
+
+          <div className={cn(dashboardPremium.panelClass, 'overflow-hidden')}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 bg-gradient-to-b from-zinc-50/90 to-zinc-50/40">
+                    <th className={dashboardTableHeadCell()}>Date</th>
+                    <th className={cn(dashboardTableHeadCell(), 'text-right')}>Orders registered</th>
+                    <th className={cn(dashboardTableHeadCell(), 'text-right')}>Total collection (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {[...data].reverse().map((d) => (
+                    <tr key={d.date} className={dashboardPremium.tableRowHover}>
+                      <td className="border-r border-zinc-100 px-4 py-3 font-medium text-zinc-900 sm:px-6">
+                        {new Date(d.date).toLocaleDateString(undefined, {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
                         })}
-                    </div>
-                    <div className="text-center text-xs text-gray-400 mt-2 flex items-center justify-center gap-2">
-                        <Calendar className="w-3 h-3" /> Showing data from {data.length > 0 ? new Date(data[0].date).toLocaleDateString() : 'N/A'} to Today
-                    </div>
-                </div>
-
-                {/* Revenue Trend */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-                        <IndianRupee className="w-5 h-5 text-green-600" /> Daily Collection
-                    </h2>
-                    <div className="relative h-64 border-l border-b border-gray-200 flex items-end ml-10 mb-6 pb-2 gap-1 sm:gap-2">
-                        {data.map((d, i) => {
-                            const heightPct = (d.revenue / maxRevenue) * 100;
-                            const isToday = i === data.length - 1;
-                            return (
-                                <div key={d.date} className="relative flex-1 group h-full flex items-end justify-center">
-                                    <div
-                                        className={`w-full rounded-t-sm transition-all duration-300 ${isToday ? 'bg-green-600' : 'bg-green-400 group-hover:bg-green-500'}`}
-                                        style={{ height: `${heightPct}%`, minHeight: '1px' }}
-                                    />
-                                    <div className="absolute -top-8 bg-gray-900 text-white text-xs px-2 py-1 rounded hidden group-hover:block z-10 whitespace-nowrap">
-                                        ₹{d.revenue.toLocaleString()}<br />{new Date(d.date).toLocaleDateString()}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        {/* Y-axis rough markers */}
-                        <div className="absolute left-[-2.5rem] bottom-0 text-xs text-gray-400">0</div>
-                        <div className="absolute left-[-2.5rem] top-0 text-xs text-gray-400">{formatCurrency(maxRevenue)}</div>
-                    </div>
-                    <div className="text-center text-xs text-gray-400 mt-2 flex items-center justify-center gap-2">
-                        <Calendar className="w-3 h-3" /> Showing data from {data.length > 0 ? new Date(data[0].date).toLocaleDateString() : 'N/A'} to Today
-                    </div>
-                </div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-zinc-600 sm:px-6">
+                        {d.orders > 0 ? d.orders : '—'}
+                      </td>
+                      <td className="border-l border-zinc-100 bg-teal-50/20 px-4 py-3 text-right font-bold tabular-nums text-zinc-900 sm:px-6">
+                        ₹{d.revenue.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden text-sm">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-4 text-left font-medium text-gray-500 uppercase">Date</th>
-                            <th className="px-6 py-4 text-right font-medium text-gray-500 uppercase">Orders Registered</th>
-                            <th className="px-6 py-4 text-right font-medium text-gray-500 uppercase">Total Collection (₹)</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
-                        {[...data].reverse().map(d => (
-                            <tr key={d.date} className="hover:bg-gray-50">
-                                <td className="px-6 py-3 font-medium text-gray-900 border-r border-gray-100">{new Date(d.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                                <td className="px-6 py-3 text-right text-gray-600 font-semibold">{d.orders > 0 ? d.orders : '-'}</td>
-                                <td className="px-6 py-3 text-right text-gray-900 font-bold border-l border-gray-100 bg-green-50/10">₹{d.revenue.toFixed(2)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-        </div>
-    );
+          </div>
+        </>
+      )}
+    </DashboardPageScaffold>
+  );
 }

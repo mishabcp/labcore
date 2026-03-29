@@ -40,6 +40,22 @@
   outline-offset: 2px;
 }
 
+/* Auth shell: mint focus matches CTA; inputs use Tailwind ring (no double outline) */
+.auth-shell *:focus-visible {
+  outline: 2px solid rgb(45 212 191);
+  outline-offset: 2px;
+}
+
+.auth-shell :is(input, textarea, select):focus-visible {
+  outline: none;
+}
+
+/* CTA: emerald focus on light mesh */
+.auth-shell button[type='submit']:focus-visible {
+  outline: 2px solid rgb(4 120 87);
+  outline-offset: 3px;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -94,5 +110,36 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+  }
+}
+
+/* User manual: print-friendly layout (see /manual) */
+@media print {
+  .manual-print-root {
+    background: #fff !important;
+    color: #0f172a !important;
+  }
+
+  .manual-print-root .manual-print-hide {
+    display: none !important;
+  }
+
+  .manual-print-root header {
+    position: static !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+  }
+
+  .manual-print-root .manual-print-section {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border-color: #e2e8f0 !important;
+    background: #fff !important;
+  }
+
+  .manual-print-root .manual-print-progress {
+    display: none !important;
   }
 }

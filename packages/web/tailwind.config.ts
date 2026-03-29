@@ -6,9 +6,14 @@ const config: Config = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    /** Class strings in @/lib (e.g. dashboard-motion) must be scanned or utilities are purged */
+    './src/lib/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			authMono: ['var(--font-auth-mono)', 'ui-monospace', 'monospace'],
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',

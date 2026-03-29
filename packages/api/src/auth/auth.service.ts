@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  Logger,
+  HttpException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,11 +33,46 @@ export interface AuthResult {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly audit: AuditService,
   ) { }
+
+  /** Step logs for diagnosing login 500s. Set LOG_AUTH_DEBUG=1 or run with NODE_ENV!==production for verbose steps. */
+  private authStep(message: string, meta?: Record<string, unknown>): void {
+    const verbose =
+      process.env.LOG_AUTH_DEBUG === '1' || process.env.NODE_ENV !== 'production';
+    if (!verbose) return;
+    if (meta && Object.keys(meta).length > 0) {
+      this.logger.log(`[auth.login] ${message} ${JSON.stringify(meta)}`);
+    } else {
+      this.logger.log(`[auth.login] ${message}`);
+    }
+  }
+
+  private logUnexpectedAuthError(err: unknown, context: string): void {
+    const e = err instanceof Error ? err : new Error(String(err));
+    const prisma = err as { code?: string; meta?: unknown; clientVersion?: string };
+    const parts = [
+      `[auth.${context}] unexpected`,
+      `name=${e.name}`,
+      `message=${e.message}`,
+    ];
+    if (prisma.code) parts.push(`prisma.code=${prisma.code}`);
+    if (prisma.clientVersion) parts.push(`prisma.clientVersion=${prisma.clientVersion}`);
+    this.logger.error(parts.join(' '));
+    if (prisma.meta !== undefined) {
+      try {
+        this.logger.error(`[auth.${context}] prisma.meta=${JSON.stringify(prisma.meta)}`);
+      } catch {
+        this.logger.error(`[auth.${context}] prisma.meta=(unserializable)`);
+      }
+    }
+    if (e.stack) this.logger.error(e.stack);
+  }
 
   async registerLab(dto: RegisterLabDto): Promise<AuthResult> {
     const slug = dto.labName
@@ -64,25 +105,64 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthResult> {
     const identifier = dto.email ?? dto.mobile;
-    if (!identifier) throw new UnauthorizedException('Email or mobile required');
-    const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ email: identifier }, { mobile: identifier }],
-        isActive: true,
-      },
-      include: { lab: true },
+    const identifierKind = dto.email ? 'email' : dto.mobile ? 'mobile' : 'none';
+    this.authStep('start', {
+      identifierKind,
+      hasPassword: Boolean(dto.password),
     });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
-    const ok = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-    const result = await this.issueTokens(user, user.lab);
-    await this.audit.log(user.labId, user.id, 'login', 'user', user.id, undefined, { at: new Date().toISOString() });
-    return result;
+    if (!identifier) throw new UnauthorizedException('Email or mobile required');
+
+    try {
+      this.authStep('prisma.user.findFirst:before', { identifierKind });
+      const user = await this.prisma.user.findFirst({
+        where: {
+          OR: [{ email: identifier }, { mobile: identifier }],
+          isActive: true,
+        },
+        include: { lab: true },
+      });
+      this.authStep('prisma.user.findFirst:after', {
+        found: Boolean(user),
+        userId: user?.id ?? null,
+        labId: user?.labId ?? null,
+      });
+
+      if (!user) throw new UnauthorizedException('Invalid credentials');
+
+      this.authStep('bcrypt.compare:before');
+      const ok = await bcrypt.compare(dto.password, user.passwordHash);
+      this.authStep('bcrypt.compare:after', { passwordMatch: ok });
+      if (!ok) throw new UnauthorizedException('Invalid credentials');
+
+      this.authStep('prisma.user.update:lastLoginAt:before', { userId: user.id });
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+      this.authStep('prisma.user.update:lastLoginAt:after');
+
+      this.authStep('issueTokens:before', { userId: user.id });
+      const result = await this.issueTokens(user, user.lab);
+      this.authStep('issueTokens:after');
+
+      this.authStep('audit.log:before');
+      await this.audit.log(user.labId, user.id, 'login', 'user', user.id, undefined, {
+        at: new Date().toISOString(),
+      });
+      this.authStep('audit.log:after');
+
+      this.authStep('success', { userId: user.id });
+      return result;
+    } catch (err) {
+      if (err instanceof HttpException) {
+        const status = err.getStatus();
+        this.authStep('http_exception', { status, response: err.getResponse() });
+        throw err;
+      }
+      this.logUnexpectedAuthError(err, 'login');
+      throw err;
+    }
   }
 
   async refresh(refreshToken: string): Promise<AuthResult> {

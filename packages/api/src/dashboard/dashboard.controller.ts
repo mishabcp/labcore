@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { DashboardService } from './dashboard.service';
@@ -24,7 +24,10 @@ export class DashboardController {
   }
 
   @Get('trends')
-  async trends(@CurrentUser() user: JwtUser) {
-    return this.dashboard.getTrends(user.labId);
+  async trends(
+    @CurrentUser() user: JwtUser,
+    @Query('scope') scope?: string,
+  ) {
+    return this.dashboard.getTrends(user.labId, scope === 'all' ? 'all' : 30);
   }
 }

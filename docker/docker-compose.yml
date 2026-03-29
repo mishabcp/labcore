@@ -1,6 +1,5 @@
 # Local development: Postgres (and optional Redis for sessions later).
 # For production we use Supabase; this is for offline dev without Supabase.
-version: '3.8'
 
 services:
   postgres:

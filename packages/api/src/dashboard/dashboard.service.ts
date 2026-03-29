@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) { }
 
+  private trendDayKey(d: unknown): string {
+    if (d instanceof Date) return d.toISOString().split('T')[0];
+    if (typeof d === 'string') return d.slice(0, 10);
+    return String(d).slice(0, 10);
+  }
+
   async getStats(labId: string) {
     const now = new Date();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date(startOfToday);
-    endOfToday.setDate(endOfToday.getDate() + 1);
 
     const startOfWeek = new Date(now);
     startOfWeek.setHours(0, 0, 0, 0);
@@ -27,29 +30,41 @@ export class DashboardService {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const [
-      todayPatients,
-      todayOrders,
-      todayReports,
-      todayPayments,
+      totalPatients,
+      totalOrders,
+      totalReports,
+      totalReportDeliveries,
+      paymentTotalsByMode,
+      orderStatusGroups,
       weekPayments,
       monthPayments,
       pendingSamples,
       authorisedResults,
-      todayReportsDelivered,
       resultsPendingAuth,
+      totalSamples,
+      invoicesOutstanding,
     ] = await Promise.all([
       this.prisma.patient.count({
-        where: { labId, deletedAt: null, createdAt: { gte: startOfToday, lt: endOfToday } },
+        where: { labId, deletedAt: null },
       }),
       this.prisma.order.count({
-        where: { labId, deletedAt: null, registeredAt: { gte: startOfToday, lt: endOfToday } },
+        where: { labId, deletedAt: null },
       }),
       this.prisma.report.count({
-        where: { labId, generatedAt: { gte: startOfToday, lt: endOfToday } },
+        where: { labId },
       }),
-      this.prisma.payment.findMany({
-        where: { labId, receivedAt: { gte: startOfToday, lt: endOfToday } },
-        select: { amount: true, mode: true },
+      this.prisma.reportDelivery.count({
+        where: { labId, sentAt: { not: null } },
+      }),
+      this.prisma.payment.groupBy({
+        by: ['mode'],
+        where: { labId },
+        _sum: { amount: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['status'],
+        where: { labId, deletedAt: null },
+        _count: { _all: true },
       }),
       this.prisma.payment.findMany({
         where: { labId, receivedAt: { gte: startOfWeek, lt: endOfWeek } },
@@ -73,22 +88,40 @@ export class DashboardService {
         },
         select: { authorisedAt: true, orderItem: { select: { order: { select: { registeredAt: true } } } } },
       }),
-      this.prisma.reportDelivery.count({
-        where: { labId, sentAt: { gte: startOfToday, lt: endOfToday } },
-      }),
       this.prisma.result.count({
         where: { labId, status: { in: ['entered', 'reviewed'] } },
       }),
+      this.prisma.sample.count({ where: { labId } }),
+      this.prisma.invoice.aggregate({
+        where: {
+          labId,
+          status: { in: ['issued', 'partial'] },
+          amountDue: { gt: 0 },
+        },
+        _count: true,
+        _sum: { amountDue: true },
+      }),
     ]);
 
-    const todayRevenue = todayPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const revenueByMode: Record<string, number> = {};
-    for (const p of todayPayments) {
-      const mode = p.mode;
-      revenueByMode[mode] = (revenueByMode[mode] ?? 0) + Number(p.amount);
+    let totalRevenueRaw = 0;
+    const totalRevenueByMode: Record<string, number> = {};
+    for (const row of paymentTotalsByMode) {
+      const raw = Number(row._sum.amount ?? 0);
+      totalRevenueRaw += raw;
+      totalRevenueByMode[row.mode] = Math.round(raw * 100) / 100;
     }
+    const totalRevenue = Math.round(totalRevenueRaw * 100) / 100;
     const thisWeekRevenue = weekPayments.reduce((sum, p) => sum + Number(p.amount), 0);
     const thisMonthRevenue = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const ordersByStatus = orderStatusGroups.map((g) => ({
+      status: g.status,
+      count: g._count._all,
+    }));
+
+    const outstandingDue = invoicesOutstanding._sum.amountDue;
+    const amountDueTotal =
+      outstandingDue != null ? Math.round(Number(outstandingDue) * 100) / 100 : 0;
 
     const tatHours =
       authorisedResults.length > 0
@@ -103,16 +136,20 @@ export class DashboardService {
     const avgTatHours = tatHours != null ? Math.round(tatHours * 100) / 100 : null;
 
     return {
-      todayPatients,
-      todayOrders,
-      todayReports,
-      todayRevenue: Math.round(todayRevenue * 100) / 100,
+      totalPatients,
+      totalOrders,
+      totalReports,
+      totalReportDeliveries,
+      totalSamples,
+      totalRevenue,
+      totalRevenueByMode,
       thisWeekRevenue: Math.round(thisWeekRevenue * 100) / 100,
       thisMonthRevenue: Math.round(thisMonthRevenue * 100) / 100,
-      revenueByMode,
+      ordersByStatus,
+      invoicesOutstandingCount: invoicesOutstanding._count,
+      invoicesOutstandingAmount: amountDueTotal,
       pendingSamples,
       resultsPendingAuth,
-      todayReportsDelivered,
       avgTatHours,
     };
   }
@@ -173,7 +210,62 @@ export class DashboardService {
     };
   }
 
-  async getTrends(labId: string, days = 30) {
+  private async getTrendsAllTime(labId: string) {
+    const [orderRows, payRows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ d: Date | string; c: bigint | number }>>(
+        Prisma.sql`
+          SELECT (registered_at AT TIME ZONE 'UTC')::date AS d, COUNT(*)::bigint AS c
+          FROM "Order"
+          WHERE lab_id = ${labId}::uuid AND deleted_at IS NULL
+          GROUP BY 1
+          ORDER BY 1 ASC
+        `,
+      ),
+      this.prisma.$queryRaw<Array<{ d: Date | string; rev: unknown }>>(
+        Prisma.sql`
+          SELECT (received_at AT TIME ZONE 'UTC')::date AS d,
+                 COALESCE(SUM(amount), 0)::numeric AS rev
+          FROM "Payment"
+          WHERE lab_id = ${labId}::uuid
+          GROUP BY 1
+          ORDER BY 1 ASC
+        `,
+      ),
+    ]);
+
+    const byDate = new Map<string, { orders: number; revenue: number }>();
+
+    for (const row of orderRows) {
+      const k = this.trendDayKey(row.d);
+      const cur = byDate.get(k) ?? { orders: 0, revenue: 0 };
+      cur.orders = Number(row.c);
+      byDate.set(k, cur);
+    }
+
+    for (const row of payRows) {
+      const k = this.trendDayKey(row.d);
+      const cur = byDate.get(k) ?? { orders: 0, revenue: 0 };
+      cur.revenue = Math.round(Number(row.rev) * 100) / 100;
+      byDate.set(k, cur);
+    }
+
+    const sorted = [...byDate.keys()].sort((a, b) => a.localeCompare(b));
+    return sorted.map((date) => {
+      const x = byDate.get(date)!;
+      return {
+        date,
+        orders: x.orders,
+        revenue: Math.round(x.revenue * 100) / 100,
+      };
+    });
+  }
+
+  async getTrends(labId: string, window: number | 'all' = 30) {
+    if (window === 'all') {
+      return this.getTrendsAllTime(labId);
+    }
+
+    const days = window;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
     cutoff.setHours(0, 0, 0, 0);
@@ -181,18 +273,16 @@ export class DashboardService {
     const [orders, payments] = await Promise.all([
       this.prisma.order.findMany({
         where: { labId, deletedAt: null, registeredAt: { gte: cutoff } },
-        select: { registeredAt: true, id: true }
+        select: { registeredAt: true, id: true },
       }),
       this.prisma.payment.findMany({
         where: { labId, receivedAt: { gte: cutoff } },
-        select: { receivedAt: true, amount: true }
-      })
+        select: { receivedAt: true, amount: true },
+      }),
     ]);
 
-    // Group by day (YYYY-MM-DD)
-    const byDate: Record<string, { orders: number, revenue: number }> = {};
+    const byDate: Record<string, { orders: number; revenue: number }> = {};
 
-    // Initialize last N days to 0 to ensure continuous chart
     for (let i = days; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -207,13 +297,15 @@ export class DashboardService {
 
     for (const p of payments) {
       const dateStr = p.receivedAt.toISOString().split('T')[0];
-      if (byDate[dateStr]) byDate[dateStr].revenue += (p.amount instanceof require('@prisma/client/runtime/library').Decimal ? p.amount.toNumber() : Number(p.amount));
+      if (byDate[dateStr]) byDate[dateStr].revenue += Number(p.amount);
     }
 
-    return Object.entries(byDate).map(([date, data]) => ({
-      date,
-      orders: data.orders,
-      revenue: Math.round(data.revenue * 100) / 100
-    })).sort((a, b) => a.date.localeCompare(b.date));
+    return Object.entries(byDate)
+      .map(([date, data]) => ({
+        date,
+        orders: data.orders,
+        revenue: Math.round(data.revenue * 100) / 100,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
   }
 }

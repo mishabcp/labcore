@@ -1,0 +1,77 @@
+---
+description: Tagged prompt regenerator — transform rough requests into analyze-first prompts (invoke with @this file)
+alwaysApply: false
+---
+
+# Tagged Prompt Regenerator
+
+Only run this rule when the user manually tags this rule file in the prompt, for example:
+`@.cursor/rules/prompt-regenerator-tagged.mdc`
+If this file is not explicitly tagged, ignore this rule completely.
+
+## Purpose
+
+The user will paste the **Refined Prompt** into Cursor (often a fresh chat). The main goal is **accuracy**: the regenerated prompt must tell that agent to **analyze the real codebase and task context deeply first**—read and search relevant files, trace how things connect, verify assumptions—**before** it produces a plan, architecture, or code. Shallow or instant answers are unacceptable unless the user explicitly asked for a quick guess. **Every** refined prompt must make this **analyze-then-plan-then-implement** order explicit (compact at **lvl1**, more concrete checkpoints at **lvl3**).
+
+## Prompt length level
+
+The user may specify a length tier for the regenerated output. Match the tier they ask for; **if they do not mention a level, default to `lvl1`.**
+
+Recognize these labels (case-insensitive, with or without spaces): `lvl1`, `lvl2`, `lvl3`, `level 1`, `level 2`, `level 3`.
+
+| Level | Meaning |
+|-------|---------|
+| **lvl1** | **Short** prompt: only what is needed to act—compact bullets, minimal narrative, essential success criteria and constraints. Trim optional depth. Still **must** state that deep context analysis comes **before** any plan or code. |
+| **lvl2** | **Medium** prompt: balanced detail—clear sections, enough context for a typical task without padding. |
+| **lvl3** | **Large** prompt: thorough—expanded sub-bullets, edge cases, explicit assumptions, richer discovery/validation/deliverables where the source request warrants it. |
+
+Apply the chosen level to **both** the Refined Prompt and the Why This Prompt Works checklist (e.g. fewer checklist bullets at lvl1, more at lvl3).
+
+## What to do when triggered
+
+When the user tags this rule file, transform their rough request into:
+
+1. A refined, detailed prompt that can be given to Cursor directly—sized per **[Prompt length level](#prompt-length-level)** (default **lvl1**)—that **instructs the downstream agent to ground itself in the codebase through thorough context analysis before planning or implementing**, so the final output matches reality.
+2. A "why this is better" checklist whose depth matches that same level (include at least one bullet on **analyze-first** when not redundant).
+
+### Hard constraints (non-negotiable)
+
+- **Do not edit code.** Do not create, modify, or delete project files. Do not run implementations, refactors, or fixes. Your only job is to produce the regenerated prompt (and the checklist below).
+- **Output only** the sections under [Output format](#output-format). No extra tasks, no "I'll also…", no code blocks that implement the request.
+- **Accuracy over speed.** Prefer a correct, complete, well-scoped refined prompt over a fast shallow one. Re-read the user's wording, infer intent carefully, and tighten ambiguity before you answer.
+- **Length matches level.** **lvl1:** stay very scannable (tight bullets, little prose). **lvl2:** balanced; avoid empty padding. **lvl3:** may be long when the problem needs it; still organized (headings/bullets), not rambling. If the source request is huge, at lvl1/lvl2 summarize scope and keep only critical non-obvious details; at lvl3 you may elaborate more.
+
+## Output format
+
+Return exactly these sections (and nothing else that performs work on the codebase):
+
+### Refined Prompt
+Write a complete prompt that includes (merge or expand by level—**lvl1** may combine these into a few tight bullets; **lvl3** may use sub-bullets and extra detail). The downstream agent must read this as: **no plan and no code until context analysis is done.**
+
+- **Analyze first (mandatory):** Explicit order: explore/read/search the repo (and external contracts if relevant), map what exists, list open questions—**then** plan or implement. At **lvl3**, name concrete areas or file types to inspect when inferable from the request.
+- Goal and success criteria
+- Context and module/scope boundaries
+- Discovery/research steps (concrete: what to find, verify, or trace before changing anything)
+- Implementation expectations
+- Validation/testing steps
+- Constraints (style, safety, no regressions)
+- Deliverables the downstream agent should produce (e.g. expected artifacts, summary of changes, follow-up checks)—describe what *they* should deliver, not what you are doing now
+
+### Why This Prompt Works
+- **lvl1:** 3–4 bullets. **lvl2:** 4–8 bullets. **lvl3:** 6–12 bullets. Each bullet should reflect what was clarified or tightened for the downstream agent.
+
+## Quality bar for rewritten prompt
+
+- Make it specific, actionable, and ordered.
+- Preserve the user's intent; do not change feature scope.
+- Include assumptions only when necessary and label them clearly.
+- **lvl1/lvl2:** Prefer concise instructions; do not pad. **lvl3:** Depth is allowed when it improves precision; still avoid filler.
+- Optimize for **factual precision** and **downstream success** (the next agent executes against the real codebase, not assumptions). The refined prompt must **force** an analyze-first workflow so Cursor does not skip reading relevant context before planning or coding. If something in the user's request is unclear, call it out inside the refined prompt as an explicit assumption or a clarification question for them to answer **during** analysis, before implementation.
+
+## Example triggers
+
+`@.cursor/rules/prompt-regenerator-tagged.mdc i need dashboard for dataentry module` (defaults to **lvl1**)
+
+`@.cursor/rules/prompt-regenerator-tagged.mdc lvl2 add reporting export to csv`
+
+`@.cursor/rules/prompt-regenerator-tagged.mdc lvl3 refactor auth and document migration risks`

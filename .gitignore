@@ -16,3 +16,6 @@ prisma/migrations/**/migration_lock.toml
 # IDE
 .idea
 .vscode
+
+# Windows reserved name artifact (breaks git add)
+packages/web/NUL

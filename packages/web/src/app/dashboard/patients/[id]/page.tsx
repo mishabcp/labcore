@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
-function getToken() {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('accessToken');
-}
+import {
+  dashboardPremium,
+  DashboardBackLink,
+  DashboardPageHeader,
+  DashboardPageScaffold,
+} from '@/components/dashboard-premium-shell';
+import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
 
 export default function PatientDetailPage() {
   const params = useParams();
@@ -24,66 +25,87 @@ export default function PatientDetailPage() {
     ageYears: number | null;
     address: string | null;
   } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token || !id) return;
-    fetch(`${API_URL}/patients/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => {
-        if (res.status === 404) return null;
-        return res.json();
-      })
-      .then(setPatient);
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.get(`/patients/${id}`);
+        if (!cancelled) setPatient(data);
+      } catch {
+        if (!cancelled) setPatient(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
+
+  if (loading) {
+    return (
+      <DashboardPageScaffold>
+        <DashboardBackLink href="/dashboard/patients">← Patients</DashboardBackLink>
+        <p className="text-sm text-zinc-500">Loading…</p>
+      </DashboardPageScaffold>
+    );
+  }
 
   if (!patient) {
     return (
-      <div>
-        <Link href="/dashboard/patients" className="text-sm text-gray-600 hover:underline">← Patients</Link>
-        <p className="mt-4 text-gray-500">Loading or not found.</p>
-      </div>
+      <DashboardPageScaffold>
+        <DashboardBackLink href="/dashboard/patients">← Patients</DashboardBackLink>
+        <p className="text-sm text-zinc-500">Not found.</p>
+      </DashboardPageScaffold>
     );
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <Link href="/dashboard/patients" className="text-sm text-gray-600 hover:underline">← Patients</Link>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">{patient.name}</h1>
-          <p className="text-sm text-gray-500">{patient.patientCode}</p>
-        </div>
-        <Link
-          href={`/dashboard/orders/new?patientId=${patient.id}`}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          New order
-        </Link>
+    <DashboardPageScaffold>
+      <div className="flex flex-wrap items-center gap-3">
+        <DashboardBackLink href="/dashboard/patients">← Patients</DashboardBackLink>
       </div>
-      <div className="rounded-lg border border-gray-200 bg-white p-6">
+      <DashboardPageHeader
+        eyebrow={patient.patientCode}
+        title={patient.name}
+        subtitle="Patient profile and quick actions."
+        compact
+        action={
+          <Link href={`/dashboard/orders/new?patientId=${patient.id}`} className={dashboardPremium.primaryBtn}>
+            New order
+          </Link>
+        }
+      />
+
+      <div className={cn(dashboardPremium.panelClass, 'p-5 sm:p-6')}>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <dt className="text-sm font-medium text-gray-500">Mobile</dt>
-            <dd className="mt-1 text-sm text-gray-900">{patient.mobile}</dd>
+            <dt className={cn(dashboardPremium.labelClass, 'mb-1 normal-case tracking-normal text-zinc-500')}>Mobile</dt>
+            <dd className="text-sm font-medium text-zinc-900">{patient.mobile}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Email</dt>
-            <dd className="mt-1 text-sm text-gray-900">{patient.email ?? '—'}</dd>
+            <dt className={cn(dashboardPremium.labelClass, 'mb-1 normal-case tracking-normal text-zinc-500')}>Email</dt>
+            <dd className="text-sm font-medium text-zinc-900">{patient.email ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Gender</dt>
-            <dd className="mt-1 text-sm text-gray-900">{patient.gender}</dd>
+            <dt className={cn(dashboardPremium.labelClass, 'mb-1 normal-case tracking-normal text-zinc-500')}>Gender</dt>
+            <dd className="text-sm font-medium capitalize text-zinc-900">{patient.gender}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-gray-500">Age</dt>
-            <dd className="mt-1 text-sm text-gray-900">{patient.ageYears ?? '—'}</dd>
+            <dt className={cn(dashboardPremium.labelClass, 'mb-1 normal-case tracking-normal text-zinc-500')}>Age</dt>
+            <dd className="text-sm font-medium text-zinc-900">{patient.ageYears ?? '—'}</dd>
           </div>
           <div className="sm:col-span-2">
-            <dt className="text-sm font-medium text-gray-500">Address</dt>
-            <dd className="mt-1 text-sm text-gray-900">{patient.address ?? '—'}</dd>
+            <dt className={cn(dashboardPremium.labelClass, 'mb-1 normal-case tracking-normal text-zinc-500')}>
+              Address
+            </dt>
+            <dd className="text-sm text-zinc-800">{patient.address ?? '—'}</dd>
           </div>
         </dl>
       </div>
-    </div>
+    </DashboardPageScaffold>
   );
 }

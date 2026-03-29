@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  dashboardPremium,
+  DashboardListSkeleton,
+  DashboardPageHeader,
+  DashboardPageScaffold,
+} from '@/components/dashboard-premium-shell';
+import { cn } from '@/lib/utils';
 
 interface ReportTemplate {
     reportHeaderColor: string;
@@ -71,15 +78,21 @@ export default function ReportTemplatePage() {
     };
 
     if (loading) {
-        return <div className="p-8 text-center text-gray-500">Loading settings...</div>;
+        return (
+            <DashboardPageScaffold className="max-w-3xl">
+                <DashboardListSkeleton rows={4} />
+            </DashboardPageScaffold>
+        );
     }
 
     return (
-        <div className="max-w-3xl space-y-6">
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900">Report Template</h1>
-                <p className="text-sm text-gray-500">Configure how your PDF reports look for patients.</p>
-            </div>
+        <DashboardPageScaffold className="max-w-3xl">
+            <DashboardPageHeader
+                eyebrow="Settings"
+                title="Report template"
+                subtitle="Configure how PDF reports look for patients."
+                compact
+            />
 
             {error && (
                 <div className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-600">
@@ -95,19 +108,22 @@ export default function ReportTemplatePage() {
                 </div>
             )}
 
-            <form onSubmit={handleSave} className="space-y-8 divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white shadow-sm">
+            <form
+                onSubmit={handleSave}
+                className={cn(dashboardPremium.panelClass, 'space-y-8 divide-y divide-zinc-100 overflow-hidden p-0')}
+            >
 
                 {/* Branding Section */}
                 <div className="p-6 space-y-4">
-                    <div className="flex items-center gap-2 border-b border-gray-100 pb-4 mb-4">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <h2 className="text-lg font-medium text-gray-900">Branding Colors</h2>
+                    <div className="mb-4 flex items-center gap-2 border-b border-zinc-100 pb-4">
+                        <FileText className="h-5 w-5 text-teal-700" />
+                        <h2 className="text-lg font-medium text-zinc-900">Branding colors</h2>
                     </div>
 
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                         <div className="space-y-2 text-left">
                             <Label htmlFor="reportHeaderColor">Header / Title Color</Label>
-                            <div className="flex border rounded-md px-1 items-center bg-white shadow-sm focus-within:ring-1 focus-within:ring-blue-500">
+                            <div className="flex items-center rounded-md border border-zinc-200 bg-white px-1 shadow-sm focus-within:ring-2 focus-within:ring-teal-500/30">
                                 <input
                                     type="color"
                                     id="reportHeaderColor"
@@ -127,7 +143,7 @@ export default function ReportTemplatePage() {
 
                         <div className="space-y-2 text-left">
                             <Label htmlFor="reportFooterColor">Footer Line Color</Label>
-                            <div className="flex border rounded-md px-1 items-center bg-white shadow-sm focus-within:ring-1 focus-within:ring-blue-500">
+                            <div className="flex items-center rounded-md border border-zinc-200 bg-white px-1 shadow-sm focus-within:ring-2 focus-within:ring-teal-500/30">
                                 <input
                                     type="color"
                                     id="reportFooterColor"
@@ -149,9 +165,9 @@ export default function ReportTemplatePage() {
 
                 {/* Page Margins for Letterhead */}
                 <div className="p-6 space-y-4">
-                    <div className="border-b border-gray-100 pb-4 mb-4">
-                        <h2 className="text-lg font-medium text-gray-900">PDF Margins</h2>
-                        <p className="text-sm text-gray-500">Adjust margins (in pt) if you are printing on pre-printed letterheads</p>
+                    <div className="mb-4 border-b border-zinc-100 pb-4">
+                        <h2 className="text-lg font-medium text-zinc-900">PDF margins</h2>
+                        <p className="text-sm text-zinc-500">Adjust margins (in pt) if you are printing on pre-printed letterheads</p>
                     </div>
 
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -179,8 +195,8 @@ export default function ReportTemplatePage() {
 
                 {/* Extra Features */}
                 <div className="p-6 space-y-4">
-                    <div className="border-b border-gray-100 pb-4 mb-4">
-                        <h2 className="text-lg font-medium text-gray-900">Features</h2>
+                    <div className="mb-4 border-b border-zinc-100 pb-4">
+                        <h2 className="text-lg font-medium text-zinc-900">Features</h2>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -189,7 +205,7 @@ export default function ReportTemplatePage() {
                             id="showQrCode"
                             checked={template.showQrCode}
                             onChange={(e) => setTemplate({ ...template, showQrCode: e.target.checked })}
-                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className={dashboardPremium.checkbox}
                         />
                         <Label htmlFor="showQrCode" className="font-normal">
                             Show Verification QR Code on Reports
@@ -197,12 +213,12 @@ export default function ReportTemplatePage() {
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3 bg-gray-50 p-6 rounded-b-lg">
+                <div className="flex justify-end gap-3 rounded-b-2xl bg-zinc-50/90 p-6">
                     <Button type="submit" disabled={saving}>
                         {saving ? 'Saving...' : 'Save Settings'}
                     </Button>
                 </div>
             </form>
-        </div>
+        </DashboardPageScaffold>
     );
 }
