@@ -5,6 +5,7 @@ build
 .env
 .env.local
 .env.*.local
+.env.supabase
 *.log
 
 .DS_Store
