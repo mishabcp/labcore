@@ -16,7 +16,9 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
-    "db:supabase:seed": "node scripts/require-env-supabase.cjs && dotenv -e .env.supabase -o -- prisma migrate deploy && dotenv -e .env.supabase -o -- prisma db seed"
+    "db:supabase:seed": "node scripts/require-env-supabase.cjs && dotenv -e .env.supabase -o -- prisma migrate deploy && dotenv -e .env.supabase -o -- prisma db seed",
+    "db:compare:local-supabase": "node scripts/compare-local-supabase-db.cjs",
+    "db:sync:local-to-supabase": "node scripts/sync-local-data-to-supabase.cjs"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
@@ -26,6 +28,7 @@
     "@types/bcryptjs": "^3.0.0",
     "dotenv-cli": "^11.0.0",
     "eslint": "^8.56.0",
+    "pg": "^8.20.0",
     "prettier": "^3.2.5",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",

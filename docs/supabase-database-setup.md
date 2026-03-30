@@ -1,6 +1,6 @@
 # Supabase database: connect and seed
 
-This guide explains how to point Prisma at your Supabase Postgres database and run migrations plus the demo seeder (`prisma/seed.ts`).
+This guide explains how to point Prisma at your Supabase Postgres database, run migrations and the demo seeder (`prisma/seed.ts`), **copy local Docker data to Supabase**, and **compare** row counts between the two.
 
 ## Prerequisites
 
@@ -70,7 +70,41 @@ pnpm db:supabase:seed
 
 (`db push` applies `schema.prisma` without relying on a full migration history; this repo’s tracked migrations may be incremental—see below.)
 
-## 5. Troubleshooting
+## 5. Copy local database to Supabase
+
+To make Supabase’s **`public`** data match your **local Docker Postgres** (`.env` → `DATABASE_URL`):
+
+1. Ensure local Postgres is running (e.g. `docker compose` from `docker/docker-compose.yml`).
+2. Ensure **`.env.supabase`** is configured (same as for seeding). The sync uses **`DIRECT_URL`** when set, which suits longer transactions.
+3. From the repo root:
+
+```bash
+pnpm run db:sync:local-to-supabase -- --yes
+```
+
+The **`--yes`** flag is required on purpose: this **truncates every `public` table on Supabase except `_prisma_migrations`**, then re-inserts all rows from localhost in foreign-key order.
+
+**Important:**
+
+- Anything that existed only on Supabase in `public` is **removed** and not restored.
+- **`_prisma_migrations`** on Supabase is **not** truncated so migration history stays intact.
+- Matching **row counts** does not strictly prove identical bytes; for a deep audit you would use checksums or `pg_dump` diffs.
+
+Script: **`scripts/sync-local-data-to-supabase.cjs`**.
+
+## 6. Compare localhost and Supabase (row counts)
+
+Quick check that both databases list the same tables and row counts in **`public`**:
+
+```bash
+pnpm db:compare:local-supabase
+```
+
+Reads **`DATABASE_URL`** from **`.env`** and **`.env.supabase`**. Tables present only on one side are called out. The printed **TOTAL** can differ by the `_prisma_migrations` rows if only Supabase tracks Prisma history.
+
+Script: **`scripts/compare-local-supabase-db.cjs`**.
+
+## 7. Troubleshooting
 
 | Symptom | What to try |
 |---------|-------------|
@@ -78,7 +112,7 @@ pnpm db:supabase:seed
 | **`P1000` Authentication failed** | Confirm **database** password; add **`sslmode=require`** to pooler URLs; URL-encode special characters in the password. |
 | **`P3005` The database schema is not empty** | Schema may already match Prisma (e.g. after `db push`) while `_prisma_migrations` is out of sync. See [Prisma: Baseline a production database](https://www.prisma.io/docs/guides/migrate/production-troubleshooting#baseline-your-production-environment). For this repo’s single audit-trigger migration, if the DB already matches and you only need history aligned: `npx dotenv-cli -e .env.supabase -o -- npx prisma migrate resolve --applied "20260223000000_audit_log_immutable_trigger"`, then run `pnpm db:supabase:seed` again. |
 
-## 6. Security
+## 8. Security
 
 - Never commit **`.env.supabase`** (it is listed in `.gitignore`).
 - Treat connection strings like secrets; rotate the database password if a string may have leaked.
